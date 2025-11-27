@@ -32,17 +32,6 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-class Campaign(Base):
-    """מודל קמפיין שיווקי"""
-    __tablename__ = 'campaigns'
-    
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    description = Column(Text)
-    source = Column(String(50))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
 class DatabaseManager:
     """מחלקה לניהול מסד הנתונים"""
     
@@ -55,6 +44,7 @@ class DatabaseManager:
         
         # יצירת הטבלאות
         Base.metadata.create_all(bind=self.engine)
+        print("✅ Database tables created successfully")
     
     def get_session(self):
         """קבלת session למסד הנתונים"""
@@ -114,6 +104,11 @@ class DatabaseManager:
         """הוספת משתמש חדש"""
         session = self.get_session()
         try:
+            # בדיקה אם המשתמש כבר קיים
+            existing_user = session.query(User).filter(User.telegram_id == telegram_id).first()
+            if existing_user:
+                return existing_user
+            
             user = User(
                 telegram_id=telegram_id,
                 first_name=first_name,
@@ -126,9 +121,6 @@ class DatabaseManager:
             return user
         except Exception as e:
             session.rollback()
-            # אם המשתמש כבר קיים, לא נזרוק שגיאה
-            if "unique constraint" in str(e).lower():
-                return self.get_user_by_telegram_id(telegram_id)
             raise e
         finally:
             session.close()
