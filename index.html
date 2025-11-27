@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLH Ecosystem - אקוסיסטם דיגיטלי חדשני</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- AOS Animation -->
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3a0ca3;
+            --accent-color: #7209b7;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+            --success-color: #4cc9f0;
+            --text-color: #333;
+            --bg-color: #fff;
+            --card-bg: #fff;
+            --border-color: #e9ecef;
+            --shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #4895ef;
+            --secondary-color: #560bad;
+            --accent-color: #b5179e;
+            --light-color: #343a40;
+            --dark-color: #f8f9fa;
+            --success-color: #4cc9f0;
+            --text-color: #f8f9fa;
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --border-color: #333;
+            --shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        body {
+            font-family: 'Heebo', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .navbar {
+            background-color: var(--card-bg) !important;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .navbar-brand {
+            font-weight: 900;
+            color: var(--primary-color) !important;
+        }
+
+        .nav-link {
+            color: var(--text-color) !important;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-link:hover {
+            color: var(--primary-color) !important;
+        }
+
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 150px 0 100px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" opacity="0.1"><polygon fill="white" points="0,1000 1000,0 1000,1000"/></svg>');
+            background-size: cover;
+        }
+
+        .section-title {
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+            position: relative;
+            display: inline-block;
+        }
+
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            right: 0;
+            width: 60px;
+            height: 4px;
+            background: var(--primary-color);
+            border-radius: 2px;
+        }
+
+        .section-padding {
+            padding: 80px 0;
+        }
+
+        .card-custom {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+
+        .card-custom:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 30px 20px;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            font-weight: 500;
+            padding: 12px 30px;
+            border-radius: 30px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+            font-weight: 500;
+            padding: 12px 30px;
+            border-radius: 30px;
+            transition: all 0.3s;
+        }
+
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .timeline {
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .timeline::after {
+            content: '';
+            position: absolute;
+            width: 6px;
+            background-color: var(--primary-color);
+            top: 0;
+            bottom: 0;
+            right: 50%;
+            margin-right: -3px;
+            border-radius: 3px;
+        }
+
+        .timeline-item {
+            padding: 10px 40px;
+            position: relative;
+            width: 50%;
+            box-sizing: border-box;
+        }
+
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: var(--bg-color);
+            border: 4px solid var(--primary-color);
+            top: 15px;
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .left {
+            right: 0;
+        }
+
+        .left::after {
+            left: -10px;
+        }
+
+        .right {
+            right: 50%;
+        }
+
+        .right::after {
+            right: -10px;
+        }
+
+        .timeline-content {
+            padding: 20px;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .timeline-date {
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .testimonial-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: var(--shadow);
+            margin: 15px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .testimonial-text {
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+
+        .testimonial-author {
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .faq-item {
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .faq-question {
+            padding: 15px 20px;
+            background: var(--card-bg);
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .faq-answer {
+            padding: 0 20px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+
+        .faq-item.active .faq-answer {
+            padding: 20px;
+            max-height: 500px;
+        }
+
+        .footer {
+            background: var(--card-bg);
+            color: var(--text-color);
+            padding: 60px 0 30px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .social-links a {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            margin-left: 10px;
+            transition: all 0.3s;
+        }
+
+        .social-links a:hover {
+            background: var(--secondary-color);
+            transform: translateY(-3px);
+        }
+
+        @media (max-width: 768px) {
+            .timeline::after {
+                right: 31px;
+            }
+            
+            .timeline-item {
+                width: 100%;
+                padding-right: 70px;
+                padding-left: 25px;
+            }
+            
+            .timeline-item::after {
+                right: 21px;
+                left: auto;
+            }
+            
+            .right {
+                right: 0%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle -->
+    <button class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-infinity me-2"></i>
+                SLH Ecosystem
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#home">בית</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#about">אודות</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#features">יתרונות</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#products">מוצרים</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#investment">השקעה</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#roadmap">לו"ז</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#contact">צור קשר</a></li>
+                    <li class="nav-item">
+                        <a class="btn btn-primary btn-sm" href="https://t.me/ICQ2_bot" target="_blank">
+                            <i class="fab fa-telegram me-1"></i> התחל עכשיו
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6" data-aos="fade-right">
+                    <h1 class="display-4 fw-bold mb-4">SLH Ecosystem - העתיד הכלכלי מתחיל כאן</h1>
+                    <p class="lead mb-5">אקוסיסטם דיגיטלי חדשני המשלב AI, בלוקצ'יין וכלכלה חברתית. הצטרפו למהפכה הכלכלית וקבלו תשואה על ההשקעה.</p>
+                    <div class="hero-buttons">
+                        <a href="#investment" class="btn btn-light btn-lg me-3">
+                            <i class="fas fa-chart-line me-2"></i>מידע על השקעה
+                        </a>
+                        <a href="https://t.me/ICQ2_bot" class="btn btn-outline-light btn-lg" target="_blank">
+                            <i class="fab fa-telegram me-2"></i>התחל בבוט
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-6 text-center" data-aos="fade-left">
+                    <div class="hero-image mt-5 mt-lg-0">
+                        <i class="fas fa-infinity display-1 text-white opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="section-padding">
+        <div class="container">
+            <div class="row text-center">
+                <div class="col-md-3 col-6 mb-4" data-aos="fade-up">
+                    <div class="card-custom stat-card">
+                        <div class="stat-number">60+</div>
+                        <p>לידים יומיים</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-4" data-aos="fade-up" data-aos-delay="100">
+                    <div class="card-custom stat-card">
+                        <div class="stat-number">100+</div>
+                        <p>משתמשים פעילים</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-4" data-aos="fade-up" data-aos-delay="200">
+                    <div class="card-custom stat-card">
+                        <div class="stat-number">24/7</div>
+                        <p>שרתים פעילים</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-4" data-aos="fade-up" data-aos-delay="300">
+                    <div class="card-custom stat-card">
+                        <div class="stat-number">$4M</div>
+                        <p>יעד גיוס</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="section-padding bg-light">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6 mb-5 mb-lg-0" data-aos="fade-right">
+                    <h2 class="section-title">המהפכה הדיגיטלית של SLH</h2>
+                    <p class="lead mb-4">SLH Ecosystem הוא אקוסיסטם חדשני המאחד פלטפורמות מסחר, ארנק קריפטו חוצה-רשתות, מערכת תשלומים קהילתית, חנות בוטים דיגיטלית אוטומטית, ואקדמיה למומחים עם תגמול אמיתי.</p>
+                    <p class="mb-4">האקוסיסטם מבוסס על העיקרון: <strong>"Knowledge = Capital. Time = Currency."</strong> המערכת מתגמלת מומחים, בעלי עסקים, מתכנתים ומשתמשים – כולם בתוך כלכלה אחת המאחדת Web2, Web3 ו-AI.</p>
+                    <a href="#features" class="btn btn-primary">גלה את היתרונות</a>
+                </div>
+                <div class="col-lg-6" data-aos="fade-left">
+                    <div class="row">
+                        <div class="col-6 mb-4">
+                            <div class="card-custom text-center p-4">
+                                <i class="fas fa-brain feature-icon"></i>
+                                <h5>בינה מלאכותית</h5>
+                                <p class="mb-0">מערכות AI לניתוח, חיזוי ואוטומציה</p>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-4">
+                            <div class="card-custom text-center p-4">
+                                <i class="fas fa-link feature-icon"></i>
+                                <h5>בלוקצ'יין</h5>
+                                <p class="mb-0">תמיכה ב-BSC, TON, Ethereum ועוד</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="card-custom text-center p-4">
+                                <i class="fas fa-users feature-icon"></i>
+                                <h5>כלכלה חברתית</h5>
+                                <p class="mb-0">מודל Pi Index לתגמול משתמשים</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="card-custom text-center p-4">
+                                <i class="fas fa-robot feature-icon"></i>
+                                <h5>אוטומציה מלאה</h5>
+                                <p class="mb-0">בוטים חכמים לניהול ותפעול</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="section-padding">
+        <div class="container">
+            <div class="text-center mb-5" data-aos="fade-up">
+                <h2 class="section-title">יתרונות מרכזיים</h2>
+                <p class="lead">מדוע SLH Ecosystem הוא הפתרון המושלם עבורך?</p>
+            </div>
+            <div class="row">
+                <div class="col-lg-4 mb-4" data-aos="fade-up">
+                    <div class="card-custom p-4 h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <h4>מהירות וביצועים</h4>
+                        <p>מערכת מהירה ויעילה עם זמן תגובה מינימלי וחוויית משתמש חלקה.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-4" data-aos="fade-up" data-aos-delay="100">
+                    <div class="card-custom p-4 h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h4>אבטחה מתקדמת</h4>
+                        <p>מערכת אבטחה רב-שכבתית עם הצפנה מתקדמת והגנה מפני איומים.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-4" data-aos="fade-up" data-aos-delay="200">
+                    <div class="card-custom p-4 h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-hand-holding-usd"></i>
+                        </div>
+                        <h4>תשואה גבוהה</h4>
+                        <p>פוטנציאל תשואה משמעותי על ההשקעה עם מודל עסקי מוכח.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Products Section -->
+    <section id="products" class="section-padding bg-light">
+        <div class="container">
+            <div class="text-center mb-5" data-aos="fade-up">
+                <h2 class="section-title">מוצרי הליבה שלנו</h2>
+                <p class="lead">חמישה עמודי תווך המרכיבים את האקוסיסטם השלם</p>
+            </div>
+            <div class="row">
+                <div class="col-lg-4 col-md-6 mb-4" data-aos="fade-up">
+                    <div class="card-custom p-4 h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-wallet"></i>
+                        </div>
+                        <h4>SLH Wallet Bot</h4>
+                        <p>ארנק קריפטו חכם התומך ב-BSC ו-TON עם יצירת ארנק אוטומטית, המרות, וניהול נכסים מתקדם.</p>
+                        <ul>
+                            <li>יצירת ארנק אוטומטית</li>
+                            <li>תמיכה ב-BSC & TON</li>
+                            <li>המרת מטבעות</li>
+                            <li>API מלא למפתחים</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6 mb-4" data-aos="fade-up" data-aos-delay="100">
+                    <div class="card-custom p-4 h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h4>TON Trading Bot Pro</h4>
+                        <p>בוט מסחר מתקדם עם ניתוחים חכמים, איתותים בזמן אמת וחיזוי תנועות שוק.</p>
+                        <ul>
+                            <li>ניתוחים טכניים מתקדמים</li>
+                            <li>איתותים לפי Symbol</li>
+                            <li>חיזוי תנועות שוק</li>
+                            <li>מנוי פרימיום</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6 mb-4" data-aos="fade-up" data-aos-delay="200">
+                    <div class="card-custom p-4 h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-store"></i>
+                        </div>
+                        <h4>BotShop Marketplace</h4>
+                        <p>שוק בוטים דיגיטלי שבו כל אחד יכול ליצור, למכור ולקנות בוטים אוטומטיים ושירותים.</p>
+                        <ul>
+                            <li>יצירת בוטים בקליק</li>
+                            <li>מכירה ב-39 ש"ח והלאה</li>
+                            <li>מערכת הפניות מלאה</li>
+                            <li>תבניות מוכנות</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Investment Section -->
+    <section id="investment" class="section-padding">
+        <div class="container">
+            <div class="text-center mb-5" data-aos="fade-up">
+                <h2 class="section-title">הזדמנות השקעה ייחודית</h2>
+                <p class="lead">הצטרפו למהפכה הכלכלית וקבלו תשואה על ההשקעה</p>
+            </div>
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <div class="card-custom p-5" data-aos="zoom-in">
+                        <div class="text-center mb-4">
+                            <h3>הצעת השקעה בלעדית</h3>
+                            <span class="badge bg-primary">מוגבל למשקיעים אסטרטגיים</span>
+                        </div>
+                        <div class="row text-center mb-4">
+                            <div class="col-md-4 mb-3">
+                                <div class="stat-number">$4M</div>
+                                <p>סכום הגיוס</p>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="stat-number">15%</div>
+                                <p>אחוזי בעלות</p>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="stat-number">10,000+</div>
+                                <p>השקעה מינימלית (ש"ח)</p>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <h5 class="mb-3">יעדי הגיוס:</h5>
+                            <ul>
+                                <li>הרחבת מנוע ה-AI ומערכות הלמידה</li>
+                                <li>ניהול ושיפור שרתים וחוזים חכמים</li>
+                                <li>השקת האקדמיה הדיגיטלית המלאה</li>
+                                <li>פיתוח בורסה פנימית (Exchange)</li>
+                                <li>קמפיין פרסום וחדירה לשוק הבינלאומי</li>
+                            </ul>
+                        </div>
+                        <div class="text-center">
+                            <a href="https://t.me/ICQ2_bot" class="btn btn-primary btn-lg me-3" target="_blank">
+                                <i class="fab fa-telegram me-2"></i>התחל השקעה
+                            </a>
+                            <a href="#contact" class="btn btn-outline-primary btn-lg">
+                                <i class="fas fa-envelope me-2"></i>פרטים נוספים
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap Section -->
+    <section id="roadmap" class="section-padding bg-light">
+        <div class="container">
+            <div class="text-center mb-5" data-aos="fade-up">
+                <h2 class="section-title">מפת הדרכים 2025-2026</h2>
+                <p class="lead">התוכנית האסטרטגית להשקת המהפכה הדיגיטלית</p>
+            </div>
+            <div class="timeline">
+                <div class="timeline-item left" data-aos="fade-right">
+                    <div class="timeline-content">
+                        <div class="timeline-date">Q1 2025</div>
+                        <h5>שלב ההשקה</h5>
+                        <ul>
+                            <li>ארנק SLH רב-שרשרת</li>
+                            <li>מסחר TON-BSC משולב</li>
+                            <li>BotShop Marketplace</li>
+                            <li>מערכת הפניות מתקדמת</li>
+                            <li>מדד Pi Index גרסה 1</li>
+                        </ul>
+                        <span class="badge bg-success"><i class="fas fa-check me-1"></i> הושלם</span>
+                    </div>
+                </div>
+                <div class="timeline-item right" data-aos="fade-left">
+                    <div class="timeline-content">
+                        <div class="timeline-date">Q2 2025</div>
+                        <h5>שלב ההרחבה</h5>
+                        <ul>
+                            <li>אקדמיית מומחים דיגיטלית</li>
+                            <li>זהות NFT למשתמשים</li>
+                            <li>SLH Web App גרסה 2</li>
+                            <li>דשבורד ניהול מלא</li>
+                        </ul>
+                        <span class="badge bg-warning text-dark"><i class="fas fa-sync-alt me-1"></i> בתהליך</span>
+                    </div>
+                </div>
+                <div class="timeline-item left" data-aos="fade-right">
+                    <div class="timeline-content">
+                        <div class="timeline-date">Q3 2025</div>
+                        <h5>שלב מתקדם</h5>
+                        <ul>
+                            <li>בורסת SLH (Mini Exchange)</li>
+                            <li>בריכות Staking</li>
+                            <li>שדרוג טוקן לגרסה 2</li>
+                            <li>הרחבה לרשתות נוספות</li>
+                        </ul>
+                        <span class="badge bg-secondary"><i class="fas fa-clock me-1"></i> מתוכנן</span>
+                    </div>
+                </div>
+                <div class="timeline-item right" data-aos="fade-left">
+                    <div class="timeline-content">
+                        <div class="timeline-date">Q4 2025</div>
+                        <h5>סופר-אפליקציה</h5>
+                        <ul>
+                            <li>SLH Super-App מלאה</li>
+                            <li>Marketplace חוצה רשתות</li>
+                            <li>חיבור בנקאי ישיר</li>
+                            <li>AI Guardian להגנה</li>
+                        </ul>
+                        <span class="badge bg-secondary"><i class="fas fa-clock me-1"></i> מתוכנן</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section class="section-padding">
+        <div class="container">
+            <div class="text-center mb-5" data-aos="fade-up">
+                <h2 class="section-title">מה אומרים עלינו</h2>
+                <p class="lead">דעותיהם של משקיעים ושותפים שלנו</p>
+            </div>
+            <div class="row">
+                <div class="col-lg-4 mb-4" data-aos="fade-up">
+                    <div class="testimonial-card">
+                        <div class="testimonial-text">
+                            "SLH Ecosystem שינתה את הדרך בה אני משקיע. המערכת החכמה והבוטים המתקדמים חסכו לי שעות של עבודה וסיפקו תוצאות מרשימות."
+                        </div>
+                        <div class="testimonial-author">- דניאל לוי, משקיע</div>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-4" data-aos="fade-up" data-aos-delay="100">
+                    <div class="testimonial-card">
+                        <div class="testimonial-text">
+                            "כמפתח, אני מעריך את הגישה הטכנולוגית המתקדמת של SLH. ה-API המלא והתמיכה במספר רשתות בלוקצ'יין מאפשרים לי לפתח פתרונות חדשניים."
+                        </div>
+                        <div class="testimonial-author">- רועי כהן, מפתח</div>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-4" data-aos="fade-up" data-aos-delay="200">
+                    <div class="testimonial-card">
+                        <div class="testimonial-text">
+                            "המודל העסקי של SLH מבריק - שילוב של AI, בלוקצ'יין וכלכלה חברתית. זו ללא ספק אחת ההשקעות המבטיחות שעשיתי בשנים האחרונות."
+                        </div>
+                        <div class="testimonial-author">- שרה אברהם, יזמית</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="section-padding bg-light">
+        <div class="container">
+            <div class="text-center mb-5" data-aos="fade-up">
+                <h2 class="section-title">שאלות נפוצות</h2>
+                <p class="lead">כל מה שצריך לדעת לפני שמצטרפים</p>
+            </div>
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="faq-item" data-aos="fade-up">
+                        <div class="faq-question">
+                            <span>מהי SLH Ecosystem?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>SLH Ecosystem היא אקוסיסטם דיגיטלי חדשני המשלב AI, בלוקצ'יין וכלכלה חברתית. המערכת מאגדת בתוכה פלטפורמות מסחר, ארנק קריפטו, מערכת תשלומים, חנות בוטים ואקדמיה למומחים - הכל במקום אחד.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item" data-aos="fade-up" data-aos-delay="100">
+                        <div class="faq-question">
+                            <span>מהי ההשקעה המינימלית?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>ההשקעה המינימלית היא 10,000 ש"ח. השקעות גדולות יותר מזכות בתנאים מועדפים ובאחוזי בעלות גבוהים יותר.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item" data-aos="fade-up" data-aos-delay="200">
+                        <div class="faq-question">
+                            <span>איך מתבצעת ההשקעה?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>ההשקעה מתבצעת דרך בוט הטלגרם שלנו. לאחר יצירת קשר, נשלח לכם חוזה השקעה דיגיטלי לחתימה, ותוכלו להעביר את הסכום באמצעות העברה בנקאית או קריפטו.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item" data-aos="fade-up" data-aos-delay="300">
+                        <div class="faq-question">
+                            <span>מהי צפי התשואה על ההשקעה?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>על פי התחזיות והמודלים שלנו, צפוייה תשואה שנתית של 20%-40% על ההשקעה, בהתאם לביצועי השוק והצמיחה של הפלטפורמה.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-5 bg-primary text-white">
+        <div class="container text-center">
+            <div class="row justify-content-center">
+                <div class="col-lg-8" data-aos="zoom-in">
+                    <h2 class="display-5 fw-bold mb-4">מוכן להצטרף למהפכה?</h2>
+                    <p class="lead mb-5">
+                        הצטרפו ל-SLH Ecosystem היום והתחילו לבנות את העתיד הכלכלי שלכם.<br>
+                        השקעות מ-10,000 ש"ח עם פוטנציאל תשואה משמעותי.
+                    </p>
+                    <div class="cta-buttons">
+                        <a href="https://t.me/ICQ2_bot" class="btn btn-light btn-lg me-3" target="_blank">
+                            <i class="fab fa-telegram me-2"></i>התחל עכשיו בבוט
+                        </a>
+                        <a href="#investment" class="btn btn-outline-light btn-lg">
+                            <i class="fas fa-chart-line me-2"></i>למידע על השקעה
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="section-padding">
+        <div class="container">
+            <div class="text-center mb-5" data-aos="fade-up">
+                <h2 class="section-title">צור קשר</h2>
+                <p class="lead">מוכנים לשיחה על ההזדמנות? נשמח לשמוע מכם</p>
+            </div>
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="card-custom p-5" data-aos="fade-up">
+                        <div class="contact-info text-center mb-5">
+                            <div class="contact-item">
+                                <i class="fab fa-telegram fa-2x text-primary mb-3"></i>
+                                <h5>טלגרם</h5>
+                                <p>@ICQ2_bot</p>
+                                <a href="https://t.me/ICQ2_bot" class="btn btn-outline-primary btn-sm" target="_blank">פתח צ'אט</a>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-muted">
+                                לפרטים נוספים על אפשרויות השקעה, צרו קשר דרך בוט הטלגרם או השאירו פרטים וניצור אתכם קשר בהקדם.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-4 mb-4">
+                    <h5 class="mb-4">
+                        <i class="fas fa-infinity me-2"></i>SLH Ecosystem
+                    </h5>
+                    <p>אקוסיסטם דיגיטלי חדשני המשלב AI, בלוקצ'יין וכלכלה חברתית ליצירת העתיד הכלכלי הבא.</p>
+                    <div class="social-links mt-4">
+                        <a href="https://t.me/ICQ2_bot" class="social-link" target="_blank">
+                            <i class="fab fa-telegram"></i>
+                        </a>
+                        <a href="#" class="social-link">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="social-link">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-md-6 mb-4">
+                    <h5 class="mb-4">קישורים מהירים</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#home" class="text-decoration-none">בית</a></li>
+                        <li><a href="#about" class="text-decoration-none">אודות</a></li>
+                        <li><a href="#features" class="text-decoration-none">יתרונות</a></li>
+                        <li><a href="#investment" class="text-decoration-none">השקעה</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <h5 class="mb-4">מוצרים</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-decoration-none">SLH Wallet</a></li>
+                        <li><a href="#" class="text-decoration-none">Trading Bot</a></li>
+                        <li><a href="#" class="text-decoration-none">BotShop</a></li>
+                        <li><a href="#" class="text-decoration-none">Academy</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <h5 class="mb-4">יצירת קשר</h5>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fab fa-telegram me-2"></i>
+                            <a href="https://t.me/ICQ2_bot" class="text-decoration-none" target="_blank">@ICQ2_bot</a>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-envelope me-2"></i>
+                            <a href="mailto:"kaufmanungar@gmail.com" class="text-decoration-none">kaufmanungar@gmail.com</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-4">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-0">&copy; 2025 SLH Ecosystem. כל הזכויות שמורות.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="#" class="text-decoration-none me-3">תנאי שימוש</a>
+                    <a href="#" class="text-decoration-none">מדיניות פרטיות</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    
+    <script>
+        // Initialize AOS
+        AOS.init({
+            duration: 1000,
+            once: true,
+            offset: 100
+        });
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const icon = themeToggle.querySelector('i');
+        
+        // Check for saved theme or prefer-color-scheme
+        const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        
+        if (savedTheme) {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        });
+        
+        function updateThemeIcon(theme) {
+            if (theme === 'dark') {
+                icon.className = 'fas fa-sun';
+            } else {
+                icon.className = 'fas fa-moon';
+            }
+        }
+
+        // FAQ Accordion
+        document.querySelectorAll('.faq-question').forEach(question => {
+            question.addEventListener('click', () => {
+                const item = question.parentNode;
+                item.classList.toggle('active');
+            });
+        });
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
+                
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 80,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
