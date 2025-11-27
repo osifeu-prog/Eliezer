@@ -64,17 +64,9 @@ class CRMManager:
         return self.db.add_user(telegram_id, first_name, username)
     
     def notify_new_lead(self, lead):
-        """שליחת התראה על ליד חדש (ייושם בהמשך)"""
-        # כאן נוכל לשלוח התראות למנהלים דרך הטלגרם
-        logger.info(f"New lead notification: {lead.name} - {lead.phone}")
-        
+        """שליחת התראה על ליד חדש"""
+        logger.info(f"🔔 New lead notification: {lead.name} - {lead.phone}")
         # ניתן להוסיף כאן שליחה להודעות טלגרם למנהלים
-        # await self.send_telegram_notification(lead)
-    
-    def export_leads_to_csv(self) -> str:
-        """ייצוא לידים לקובץ CSV (פונקציונליות עתידית)"""
-        # יישום ייצוא ל-CSV
-        pass
     
     def get_daily_report(self) -> Dict:
         """קבלת דוח יומי"""
