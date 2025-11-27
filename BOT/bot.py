@@ -1,11 +1,9 @@
-import logging
 import os
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-from webhook_handler import WebhookHandler
-from crm_manager import CRMManager
 from database import DatabaseManager
-import json
+from crm_manager import CRMManager
 
 # הגדרות לוג
 logging.basicConfig(
@@ -16,18 +14,21 @@ logger = logging.getLogger(__name__)
 
 class TelegramCRMBot:
     def __init__(self):
-        self.token = os.getenv('TELEGRAM_BOT_TOKEN')
-        self.webhook_url = os.getenv('WEBHOOK_URL')
+        self.token = os.getenv('BOT_TOKEN')
+        self.webhook_secret = os.getenv('WEBHOOK_SECRET', 'webhook-123')
+        self.webhook_base = os.getenv('WEBHOOK_BASE', 'https://yourdomain.railway.app')
+        self.admin_chat_id = os.getenv('ADMIN_CHAT_ID')
+        self.group_monitor_id = os.getenv('GROUP_MONITOR_ID')
+        
         self.db = DatabaseManager()
         self.crm = CRMManager(self.db)
-        self.webhook_handler = WebhookHandler(self.crm)
         
         # יצירת האפליקציה
         self.application = Application.builder().token(self.token).build()
         
         # הוספת handlers
         self._setup_handlers()
-    
+        
     def _setup_handlers(self):
         """הגדרת כל ה-handlers של הבוט"""
         # handlers לפקודות
@@ -35,6 +36,7 @@ class TelegramCRMBot:
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("leads", self.show_leads))
         self.application.add_handler(CommandHandler("stats", self.show_stats))
+        self.application.add_handler(CommandHandler("admin", self.admin_panel))
         
         # handlers להודעות רגילות
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
@@ -60,10 +62,12 @@ class TelegramCRMBot:
         
         await update.message.reply_text(
             f"ברוך הבא {user_name}!\n\n"
-            "אני בוט ה-CRM של המשרד שלך. אני יכול לעזור לך:\n"
-            "• לנהל לידים מהאתר\n"
-            "• לעקוב אחר סטטיסטיקות\n"
-            "• לסנכרן עם מערכות חיצוניות\n\n"
+            "🤖 **אני בוט ה-CRM של המשרד שלך**\n\n"
+            "אני יכול לעזור לך:\n"
+            "• 📥 לנהל לידים מהאתר\n"
+            "• 📊 לעקוב אחר סטטיסטיקות\n"
+            "• 👥 לנהל לקוחות\n"
+            "• 🔄 לסנכרן עם מערכות חיצוניות\n\n"
             "בחר אפשרות מהתפריט:",
             reply_markup=reply_markup
         )
@@ -71,12 +75,13 @@ class TelegramCRMBot:
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """פקודת help - הצגת עזרה"""
         help_text = """
-🤖 **בוט CRM למשרד פרסום**
+🤖 **בוט CRM למשרד פרסום - עזרה**
 
 **פקודות זמינות:**
 /start - התחל שימוש בבוט
 /leads - הצג לידים חדשים
 /stats - הצג סטטיסטיקות
+/admin - פנל ניהול (למנהלים)
 /help - הצג עזרה זו
 
 **תפקידי הבוט:**
@@ -89,6 +94,29 @@ class TelegramCRMBot:
 הבוט מקבל לידים אוטומטית מהאתר דרך webhook.
         """
         await update.message.reply_text(help_text)
+    
+    async def admin_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """פנל ניהול למנהלים"""
+        user_id = update.effective_user.id
+        
+        # בדיקה אם המשתמש הוא מנהל
+        if str(user_id) != self.admin_chat_id:
+            await update.message.reply_text("❌ גישה נדחתה. פנל זה למנהלים בלבד.")
+            return
+        
+        keyboard = [
+            [InlineKeyboardButton("📊 סטטיסטיקות מתקדמות", callback_data="admin_stats")],
+            [InlineKeyboardButton("👥 כל הלידים", callback_data="admin_all_leads")],
+            [InlineKeyboardButton("🔄 ניהול מערכת", callback_data="admin_system")],
+            [InlineKeyboardButton("📢 שליחת הודעה", callback_data="admin_broadcast")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "👑 **פנל ניהול - מנהל מערכת**\n\n"
+            "בחר פעולה לניהול המערכת:",
+            reply_markup=reply_markup
+        )
     
     async def show_leads(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """הצגת הלידים האחרונים"""
@@ -103,7 +131,7 @@ class TelegramCRMBot:
             status_icon = "🟢" if lead['status'] == 'new' else "🟡" if lead['status'] == 'contacted' else "🔴"
             leads_text += f"{status_icon} **שם:** {lead['name']}\n"
             leads_text += f"📞 **טלפון:** {lead['phone']}\n"
-            leads_text += f"📧 **אימייל:** {lead['email']}\n"
+            leads_text += f"📧 **אימייל:** {lead['email'] or 'לא צוין'}\n"
             leads_text += f"📅 **תאריך:** {lead['created_at']}\n"
             leads_text += f"🏷️ **סטטוס:** {lead['status']}\n"
             leads_text += "─" * 20 + "\n"
@@ -142,7 +170,8 @@ class TelegramCRMBot:
             await self.show_stats(update, context)
         else:
             await update.message.reply_text(
-                "🤖 אני בוט ה-CRM. השתמש בפקודות או בתפריט לניווט."
+                "🤖 אני בוט ה-CRM. השתמש בפקודות או בתפריט לניווט.\n"
+                "לעזרה שלח /help"
             )
     
     async def button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -162,6 +191,8 @@ class TelegramCRMBot:
             await self.sync_website(query)
         elif callback_data == "export_leads":
             await self.export_leads(query)
+        elif callback_data.startswith("admin_"):
+            await self.handle_admin_actions(query, callback_data)
     
     async def show_leads_query(self, query):
         """הצגת לידים מ-callback query"""
@@ -208,42 +239,81 @@ class TelegramCRMBot:
     
     async def sync_website(self, query):
         """סנכרון עם האתר"""
-        webhook_status = "🟢 פעיל" if self.webhook_handler.is_active() else "🔴 לא פעיל"
+        webhook_url = f"{self.webhook_base}/{self.webhook_secret}"
         
         await query.edit_message_text(
             f"🔄 **סנכרון עם האתר**\n\n"
-            f"סטטוס Webhook: {webhook_status}\n"
-            f"כתובת: {self.webhook_url}\n\n"
-            "הבוט מקבל לידים אוטומטית מהאתר."
+            f"📡 **סטטוס Webhook:** 🟢 פעיל\n"
+            f"🌐 **כתובת:** {webhook_url}\n\n"
+            "הבוט מקבל לידים אוטומטית מהאתר.\n"
+            "כדי לבדוק את החיבור, שלח בקאת POST ל-URL למעלה."
         )
     
     async def export_leads(self, query):
         """ייצוא לידים"""
-        # כאן ניתן ליישם ייצוא ל-CSV או Excel
         await query.edit_message_text(
             "📤 **ייצוא לידים**\n\n"
             "הפונקציה נמצאת בפיתוח.\n"
             "בעתיד תוכל לייצא ל-CSV או Excel."
         )
     
-    def run_webhook(self):
-        """הרצת הבוט עם webhook"""
+    async def handle_admin_actions(self, query, callback_data):
+        """טיפול בפעולות מנהל"""
+        if callback_data == "admin_stats":
+            stats = self.crm.get_stats()
+            stats_text = "👑 **סטטיסטיקות מתקדמות - מנהל**\n\n"
+            stats_text += f"📊 **סך הכל לידים:** {stats['total_leads']}\n"
+            stats_text += f"🟢 **חדשים:** {stats['new_leads']}\n"
+            stats_text += f"🟡 **בטיפול:** {stats['contacted_leads']}\n"
+            stats_text += f"🔴 **הושלמו:** {stats['completed_leads']}\n"
+            stats_text += f"📈 **היום:** {stats['today_leads']}\n"
+            stats_text += f"🏆 **המרה:** {stats['conversion_rate']}%\n"
+            
+            await query.edit_message_text(stats_text)
+        
+        elif callback_data == "admin_all_leads":
+            leads = self.crm.get_recent_leads(limit=20)
+            if not leads:
+                await query.edit_message_text("❌ אין לידים במערכת.")
+                return
+            
+            leads_text = "👑 **כל הלידים - מנהל**\n\n"
+            for lead in leads:
+                status_icon = "🟢" if lead['status'] == 'new' else "🟡" if lead['status'] == 'contacted' else "🔴"
+                leads_text += f"{status_icon} {lead['name']} - {lead['phone']} - {lead['status']}\n"
+            
+            await query.edit_message_text(leads_text)
+    
+    def setup_webhook(self):
+        """הגדרת webhook עבור הבוט"""
+        webhook_url = f"{self.webhook_base}/{self.webhook_secret}"
         self.application.run_webhook(
             listen="0.0.0.0",
-            port=int(os.getenv('PORT', 8443)),
-            webhook_url=self.webhook_url,
-            cert=None  # ניתן להוסיף SSL certificate אם צריך
+            port=int(os.getenv('PORT', 8080)),
+            webhook_url=webhook_url,
+            secret_token=self.webhook_secret
         )
     
     def run_polling(self):
         """הרצת הבוט עם polling (לפיתוח)"""
         self.application.run_polling()
 
-if __name__ == '__main__':
+# פונקציה ראשית להרצה
+def main():
     bot = TelegramCRMBot()
     
-    # הרצה עם webhook (ל� production) או polling (לפיתוח)
-    if os.getenv('USE_WEBHOOK', 'false').lower() == 'true':
-        bot.run_webhook()
+    # בדיקה אם הטוקן קיים
+    if not bot.token:
+        logger.error("BOT_TOKEN לא הוגדר! הגדר את משתנה הסביבה BOT_TOKEN.")
+        return
+    
+    # הרצה עם webhook (ל-production) או polling (לפיתוח)
+    if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('USE_WEBHOOK', 'false').lower() == 'true':
+        logger.info("מפעיל בוט עם webhook...")
+        bot.setup_webhook()
     else:
+        logger.info("מפעיל בוט עם polling...")
         bot.run_polling()
+
+if __name__ == '__main__':
+    main()
