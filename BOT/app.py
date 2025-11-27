@@ -1,5 +1,9 @@
 import os
 import logging
+import asyncio
+from datetime import datetime
+from contextlib import asynccontextmanager
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
@@ -7,12 +11,14 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
-from datetime import datetime
-import asyncio
 import aiohttp
+
+from database import DatabaseManager
+from crm_manager import CRMManager
+from config import config
 
 # ===== CONFIGURATION =====
 logging.basicConfig(
@@ -34,91 +40,52 @@ if not BOT_TOKEN:
 
 logger.info("✅ Environment variables loaded")
 
-# אתחול בוט
+# ===== INITIALIZATION =====
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# אחסון נתונים
-leads = []
+# אתחול מסד נתונים ו-CRM
+db_manager = DatabaseManager()
+crm_manager = CRMManager(db_manager)
+
+# אחסון נתונים זמני
 active_users = set()
 
-class CRMStates(StatesGroup):
-    waiting_for_lead_name = State()
-    waiting_for_lead_phone = State()
+class LeadForm(StatesGroup):
+    name = State()
+    phone = State()
+    email = State()
+    notes = State()
 
 # ===== WEBHOOK MANAGEMENT =====
 async def setup_webhook():
     """הגדרת webhook אוטומטית"""
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            logger.info(f"🔄 Attempt {attempt + 1}/{max_retries} to setup webhook...")
-            
-            # מחק webhook קיים
-            await bot.delete_webhook(drop_pending_updates=True)
-            await asyncio.sleep(1)
-            
-            # הגדר webhook חדש
-            result = await bot.set_webhook(
-                url=WEBHOOK_URL,
-                drop_pending_updates=True,
-                allowed_updates=["message", "callback_query"]
-            )
-            
-            # בדוק את הסטטוס
-            webhook_info = await bot.get_webhook_info()
-            
-            if webhook_info.url == WEBHOOK_URL:
-                logger.info(f"✅ Webhook setup successful: {WEBHOOK_URL}")
-                logger.info(f"📊 Pending updates: {webhook_info.pending_update_count}")
-                return True
-            else:
-                logger.warning(f"⚠️ Webhook URL mismatch: {webhook_info.url} != {WEBHOOK_URL}")
-                
-        except Exception as e:
-            logger.error(f"❌ Webhook setup attempt {attempt + 1} failed: {e}")
-            await asyncio.sleep(2)
-    
-    logger.error("🚨 All webhook setup attempts failed!")
-    return False
-
-async def manual_webhook_setup():
-    """הגדרת webhook ידנית דרך Telegram API"""
     try:
-        logger.info("🔧 Trying manual webhook setup via Telegram API...")
+        logger.info("🔄 Setting up webhook...")
         
-        async with aiohttp.ClientSession() as session:
-            # מחיקת webhook קיים
-            async with session.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook",
-                json={"drop_pending_updates": True}
-            ) as response:
-                delete_result = await response.json()
-                logger.info(f"🗑️ Delete webhook result: {delete_result}")
+        # מחק webhook קיים
+        await bot.delete_webhook(drop_pending_updates=True)
+        await asyncio.sleep(1)
+        
+        # הגדר webhook חדש
+        await bot.set_webhook(
+            url=WEBHOOK_URL,
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query", "chat_member"]
+        )
+        
+        # בדוק את הסטטוס
+        webhook_info = await bot.get_webhook_info()
+        
+        if webhook_info.url == WEBHOOK_URL:
+            logger.info(f"✅ Webhook setup successful: {WEBHOOK_URL}")
+            return True
+        else:
+            logger.warning(f"⚠️ Webhook URL mismatch: {webhook_info.url}")
+            return False
             
-            await asyncio.sleep(1)
-            
-            # הגדרת webhook חדש
-            async with session.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook",
-                json={
-                    "url": WEBHOOK_URL,
-                    "drop_pending_updates": True,
-                    "allowed_updates": ["message", "callback_query"]
-                }
-            ) as response:
-                set_result = await response.json()
-                logger.info(f"🌐 Set webhook result: {set_result}")
-                
-                if set_result.get('ok'):
-                    logger.info("✅ Manual webhook setup successful!")
-                    return True
-                else:
-                    logger.error(f"❌ Manual webhook setup failed: {set_result}")
-                    return False
-                    
     except Exception as e:
-        logger.error(f"❌ Manual webhook setup error: {e}")
+        logger.error(f"❌ Webhook setup failed: {e}")
         return False
 
 # ===== LIFESPAN MANAGEMENT =====
@@ -128,16 +95,17 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Telegram CRM Bot...")
     
     try:
-        # ניסוי הגדרת webhook אוטומטית
+        # הגדרת webhook
         webhook_success = await setup_webhook()
         
-        if not webhook_success:
-            logger.warning("🔄 Falling back to manual webhook setup...")
-            await manual_webhook_setup()
+        if webhook_success:
+            logger.info("✅ Bot started successfully with webhook")
+        else:
+            logger.error("❌ Failed to setup webhook")
         
         # בדיקה סופית
         webhook_info = await bot.get_webhook_info()
-        logger.info(f"🎯 Final webhook status: {webhook_info.url}")
+        logger.info(f"🎯 Webhook status: {webhook_info.url}")
         logger.info(f"📨 Pending updates: {webhook_info.pending_update_count}")
         
         bot_user = await bot.get_me()
@@ -151,17 +119,12 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 Shutting down bot...")
     await bot.session.close()
 
-app = FastAPI(lifespan=lifespan)
-
-# ===== UTILITY FUNCTIONS =====
-async def safe_send_message(chat_id: int, text: str, **kwargs):
-    """שליחת הודעה בטוחה עם טיפול בשגיאות"""
-    try:
-        await bot.send_message(chat_id, text, **kwargs)
-        return True
-    except Exception as e:
-        logger.error(f"❌ Failed to send message to {chat_id}: {e}")
-        return False
+app = FastAPI(
+    title="Telegram CRM Bot",
+    description="בוט CRM חכם לניהול לידים ומשרד פרסום",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # ===== TELEGRAM HANDLERS =====
 @dp.message(CommandStart())
@@ -170,6 +133,13 @@ async def handle_start(message: Message):
     try:
         user_id = message.from_user.id
         active_users.add(user_id)
+        
+        # הוסף משתמש למסד הנתונים
+        crm_manager.add_user(
+            telegram_id=user_id,
+            first_name=message.from_user.first_name,
+            username=message.from_user.username
+        )
         
         logger.info(f"👤 User {user_id} started the bot")
         
@@ -181,9 +151,9 @@ async def handle_start(message: Message):
         ])
         
         welcome_text = (
-            f"🎉 **הבוט פעיל!** שלום {message.from_user.first_name}!\n\n"
+            f"🎉 **ברוך הבא!** שלום {message.from_user.first_name}!\n\n"
             "🤖 **בוט CRM למשרד פרסום**\n\n"
-            "✅ **Webhook מוגדר ופעיל**\n"
+            "✅ **מערכת פעילה ומוכנה**\n"
             "📞 ניהול לידים אוטומטי\n"
             "📈 מעקב סטטיסטיקות\n"
             "🔔 התראות מיידיות\n\n"
@@ -196,6 +166,52 @@ async def handle_start(message: Message):
     except Exception as e:
         logger.error(f"❌ Error in start: {e}")
 
+@dp.message(Command("leads"))
+async def handle_leads(message: Message):
+    """הצגת הלידים האחרונים"""
+    try:
+        leads = crm_manager.get_recent_leads(limit=5)
+        
+        if not leads:
+            await message.answer("📝 אין לידים במערכת כרגע.")
+            return
+        
+        leads_text = "📋 **לידים אחרונים:**\n\n"
+        for lead in leads:
+            leads_text += f"• **{lead['name']}** - {lead['phone']}\n"
+            leads_text += f"  📧 {lead['email'] or 'לא צוין'}\n"
+            leads_text += f"  🕒 {lead['created_at']}\n"
+            leads_text += f"  📊 סטטוס: {lead['status']}\n\n"
+        
+        await message.answer(leads_text)
+        
+    except Exception as e:
+        logger.error(f"❌ Error showing leads: {e}")
+        await message.answer("❌ שגיאה בטעינת הלידים")
+
+@dp.message(Command("stats"))
+async def handle_stats(message: Message):
+    """הצגת סטטיסטיקות"""
+    try:
+        stats = crm_manager.get_stats()
+        
+        stats_text = (
+            "📊 **סטטיסטיקות מערכת:**\n\n"
+            f"👥 **משתמשים פעילים:** {len(active_users)}\n"
+            f"📋 **סך הלידים:** {stats['total_leads']}\n"
+            f"🆕 **לידים חדשים:** {stats['new_leads']}\n"
+            f"📞 **לידים בטיפול:** {stats['contacted_leads']}\n"
+            f"✅ **לידים שהסתיימו:** {stats['completed_leads']}\n"
+            f"📈 **אחוז המרה:** {stats['conversion_rate']}%\n"
+            f"📅 **לידים מהיום:** {stats['today_leads']}\n"
+        )
+        
+        await message.answer(stats_text)
+        
+    except Exception as e:
+        logger.error(f"❌ Error showing stats: {e}")
+        await message.answer("❌ שגיאה בטעינת הסטטיסטיקות")
+
 @dp.message(Command("webhook_status"))
 async def handle_webhook_status(message: Message):
     """בדיקת סטטוס webhook"""
@@ -207,15 +223,13 @@ async def handle_webhook_status(message: Message):
             f"🌐 **URL:** {webhook_info.url or '❌ לא מוגדר'}\n"
             f"⏳ **עדכונים ממתינים:** {webhook_info.pending_update_count}\n"
             f"❌ **שגיאה אחרונה:** {webhook_info.last_error_message or 'אין'}\n"
-            f"👥 **משתמשים פעילים:** {len(active_users)}\n"
-            f"📋 **לידים:** {len(leads)}\n\n"
+            f"👥 **משתמשים פעילים:** {len(active_users)}\n\n"
         )
         
         if webhook_info.url == WEBHOOK_URL:
             status_text += "🟢 **סטטוס:** Webhook פעיל ומחובר!"
         else:
             status_text += "🔴 **סטטוס:** Webhook לא מוגדר!\n"
-            status_text += "**פתרון:** שלח /fix_webhook"
         
         await message.answer(status_text)
         
@@ -223,86 +237,72 @@ async def handle_webhook_status(message: Message):
         logger.error(f"❌ Error in webhook_status: {e}")
         await message.answer("❌ שגיאה בבדיקת סטטוס")
 
-@dp.message(Command("fix_webhook"))
-async def handle_fix_webhook(message: Message):
-    """תיקון webhook ידני"""
-    try:
-        await message.answer("🔄 **מתקן webhook...**")
-        
-        success = await setup_webhook()
-        
-        if success:
-            webhook_info = await bot.get_webhook_info()
-            response_text = (
-                "✅ **Webhook תוקן בהצלחה!**\n\n"
-                f"🌐 **URL:** {webhook_info.url}\n"
-                f"⏳ **עדכונים:** {webhook_info.pending_update_count}\n\n"
-                "**ניתן לשלוח /start לבדיקה**"
-            )
-        else:
-            response_text = (
-                "❌ **תיקון Webhook נכשל**\n\n"
-                "**פתרונות:**\n"
-                "1. בדוק את ה-TELEGRAM_BOT_TOKEN\n"
-                "2. בדוק שה-RAILWAY_URL תקין\n"
-                "3. נסה שוב בעוד דקה"
-            )
-        
-        await message.answer(response_text)
-        
-    except Exception as e:
-        logger.error(f"❌ Error fixing webhook: {e}")
-        await message.answer(f"❌ שגיאה בתיקון webhook: {e}")
-
-@dp.message(Command("force_webhook"))
-async def handle_force_webhook(message: Message):
-    """הגדרת webhook דרך Telegram API"""
-    try:
-        await message.answer("🔧 **מגדיר webhook דרך Telegram API...**")
-        
-        success = await manual_webhook_setup()
-        
-        if success:
-            response_text = "✅ **Webhook הוגדר דרך Telegram API!**\n\nנסה /start"
-        else:
-            response_text = "❌ **הגדרת Webhook נכשלה**\n\nבדוק את הלוגים לפרטים."
-        
-        await message.answer(response_text)
-        
-    except Exception as e:
-        logger.error(f"❌ Error in force_webhook: {e}")
-        await message.answer(f"❌ שגיאה: {e}")
-
-@dp.message(Command("test"))
-async def handle_test(message: Message):
-    """פקודת בדיקה"""
-    await message.answer("✅ **בוט פעיל!**\n\nהמערכת עובדת ומוכנה לקבל הודעות.")
+@dp.message(Command("help"))
+async def handle_help(message: Message):
+    """הצגת עזרה"""
+    help_text = (
+        "🆘 **עזרה - פקודות זמינות:**\n\n"
+        "/start - התחלת שימוש בבוט\n"
+        "/leads - הצג לידים אחרונים\n"
+        "/stats - הצג סטטיסטיקות\n"
+        "/webhook_status - בדיקת סטטוס\n"
+        "/help - הצג הודעה זו\n\n"
+        "**ניתן גם להשתמש בלחצנים בתפריט**"
+    )
+    
+    await message.answer(help_text)
 
 # ===== CALLBACK HANDLERS =====
 @dp.callback_query(F.data == "view_leads")
 async def handle_view_leads(callback: types.CallbackQuery):
     """צפייה בלידים"""
-    if not leads:
-        await callback.message.edit_text("📝 אין לידים במערכת.")
-    else:
-        leads_text = "📋 **לידים:**\n\n"
-        for lead in leads[-5:]:
-            leads_text += f"• {lead['name']} - {lead['phone']}\n"
-        await callback.message.edit_text(leads_text)
-    await callback.answer()
+    try:
+        leads = crm_manager.get_recent_leads(limit=5)
+        
+        if not leads:
+            await callback.message.edit_text("📝 אין לידים במערכת כרגע.")
+        else:
+            leads_text = "📋 **לידים אחרונים:**\n\n"
+            for lead in leads:
+                leads_text += f"• **{lead['name']}** - {lead['phone']}\n"
+                leads_text += f"  📧 {lead['email'] or 'לא צוין'}\n"
+                leads_text += f"  🕒 {lead['created_at']}\n\n"
+            
+            await callback.message.edit_text(leads_text)
+        
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"❌ Error in view_leads: {e}")
+        await callback.answer("❌ שגיאה בטעינת הלידים", show_alert=True)
 
 @dp.callback_query(F.data == "view_stats")
 async def handle_view_stats(callback: types.CallbackQuery):
     """סטטיסטיקות"""
-    stats_text = f"📊 **סטטיסטיקות:**\n\n👥 משתמשים: {len(active_users)}\n📋 לידים: {len(leads)}"
-    await callback.message.edit_text(stats_text)
-    await callback.answer()
+    try:
+        stats = crm_manager.get_stats()
+        
+        stats_text = (
+            "📊 **סטטיסטיקות:**\n\n"
+            f"👥 **משתמשים פעילים:** {len(active_users)}\n"
+            f"📋 **סך הלידים:** {stats['total_leads']}\n"
+            f"📅 **לידים מהיום:** {stats['today_leads']}\n"
+            f"📈 **אחוז המרה:** {stats['conversion_rate']}%\n"
+        )
+        
+        await callback.message.edit_text(stats_text)
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"❌ Error in view_stats: {e}")
+        await callback.answer("❌ שגיאה בטעינת הסטטיסטיקות", show_alert=True)
 
 @dp.callback_query(F.data == "system_check")
 async def handle_system_check(callback: types.CallbackQuery):
     """בדיקת מערכת"""
     try:
         webhook_info = await bot.get_webhook_info()
+        stats = crm_manager.get_stats()
         
         status = "🟢 פעיל" if webhook_info.url == WEBHOOK_URL else "🔴 לא פעיל"
         
@@ -311,11 +311,11 @@ async def handle_system_check(callback: types.CallbackQuery):
             f"🌐 **Webhook:** {status}\n"
             f"📨 **עדכונים:** {webhook_info.pending_update_count}\n"
             f"👥 **משתמשים:** {len(active_users)}\n"
-            f"📋 **לידים:** {len(leads)}\n\n"
+            f"📋 **לידים:** {stats['total_leads']}\n"
+            f"💾 **מסד נתונים:** 🟢 פעיל\n"
+            f"🤖 **בוט:** 🟢 פעיל\n\n"
+            "**המערכת פועלת כשורה!**"
         )
-        
-        if webhook_info.url != WEBHOOK_URL:
-            check_text += "**לפתרון:** שלח /fix_webhook"
         
         await callback.message.edit_text(check_text)
         await callback.answer()
@@ -330,7 +330,7 @@ async def handle_telegram_webhook(request: Request):
     """טיפול בעדכונים מטלגרם"""
     try:
         update_data = await request.json()
-        logger.info("📨 Received Telegram webhook")
+        logger.info("📨 Received Telegram webhook update")
         
         update = types.Update(**update_data)
         await dp.feed_update(bot, update)
@@ -349,43 +349,77 @@ async def health_check():
     """בדיקת בריאות"""
     try:
         webhook_info = await bot.get_webhook_info()
+        stats = crm_manager.get_stats()
+        
         return {
             "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
             "webhook_url": webhook_info.url,
             "pending_updates": webhook_info.pending_update_count,
             "active_users": len(active_users),
-            "leads_count": len(leads),
-            "webhook_configured": webhook_info.url == WEBHOOK_URL
+            "leads_count": stats['total_leads'],
+            "service": "Telegram CRM Bot"
         }
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 
-@app.post("/reset-webhook")
-async def reset_webhook():
-    """איפוס webhook דרך API"""
+@app.post("/webhook/lead")
+async def handle_webhook_lead(request: Request):
+    """טיפול בלידים מ-webhook חיצוני"""
     try:
-        success = await setup_webhook()
-        webhook_info = await bot.get_webhook_info()
+        data = await request.json()
+        
+        # וידוא שדות חובה
+        if not data.get('name') or not data.get('phone'):
+            raise HTTPException(status_code=400, detail="Name and phone are required")
+        
+        # הוספת הליד
+        lead = crm_manager.add_lead(
+            name=data['name'],
+            phone=data['phone'],
+            email=data.get('email'),
+            source=data.get('source', 'website'),
+            notes=data.get('notes')
+        )
+        
+        logger.info(f"✅ New lead added via webhook: {lead.name} ({lead.phone})")
+        
+        # שליחת התראה למנהלים
+        admin_chat_id = os.getenv("ADMIN_CHAT_ID")
+        if admin_chat_id:
+            try:
+                alert_text = (
+                    "🔔 **ליד חדש התקבל!**\n\n"
+                    f"👤 **שם:** {lead.name}\n"
+                    f"📞 **טלפון:** {lead.phone}\n"
+                    f"📧 **אימייל:** {lead.email or 'לא צוין'}\n"
+                    f"🌐 **מקור:** {lead.source}\n"
+                    f"🕒 **זמן:** {lead.created_at.strftime('%d/%m/%Y %H:%M')}"
+                )
+                await bot.send_message(admin_chat_id, alert_text)
+            except Exception as e:
+                logger.error(f"❌ Failed to send admin alert: {e}")
         
         return {
-            "status": "success" if success else "error",
-            "webhook_url": webhook_info.url,
-            "pending_updates": webhook_info.pending_update_count,
-            "message": "Webhook reset successfully" if success else "Webhook reset failed"
+            "success": True,
+            "lead_id": lead.id,
+            "message": "Lead added successfully"
         }
+        
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.error(f"❌ Webhook lead error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/")
 async def root():
     return {
         "message": "CRM Bot is Running",
         "status": "active", 
-        "webhook_url": WEBHOOK_URL,
+        "timestamp": datetime.utcnow().isoformat(),
         "endpoints": {
             "health": "GET /health",
-            "reset_webhook": "POST /reset-webhook",
-            "telegram_webhook": f"POST {WEBHOOK_PATH}"
+            "telegram_webhook": f"POST {WEBHOOK_PATH}",
+            "webhook_lead": "POST /webhook/lead"
         }
     }
 
