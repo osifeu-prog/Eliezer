@@ -1,31 +1,27 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, HTTPException, Request
 import logging
 from datetime import datetime
+import os
 
 logger = logging.getLogger(__name__)
+
+app = FastAPI(title="CRM Webhook Handler")
 
 class WebhookHandler:
     """מחלקה לטיפול בבקשות webhook מהאתר"""
     
     def __init__(self, crm_manager):
         self.crm_manager = crm_manager
-        self.app = Flask(__name__)
-        self._setup_routes()
+        self.webhook_secret = os.getenv('WEBHOOK_SECRET', 'webhook-123')
     
-    def _setup_routes(self):
-        """הגדרת routes ל-webhook"""
-        self.app.add_url_rule('/webhook/lead', 'handle_lead', self.handle_lead, methods=['POST'])
-        self.app.add_url_rule('/webhook/status', 'check_status', self.check_status, methods=['GET'])
-        self.app.add_url_rule('/health', 'health_check', self.health_check, methods=['GET'])
-    
-    def handle_lead(self):
+    async def handle_lead(self, request: Request):
         """טיפול בליד חדש מהאתר"""
         try:
-            data = request.get_json()
+            data = await request.json()
             
             # וידוא שהנתונים הנדרשים קיימים
             if not data or 'name' not in data or 'phone' not in data:
-                return jsonify({'error': 'Missing required fields: name, phone'}), 400
+                raise HTTPException(status_code=400, detail="Missing required fields: name, phone")
             
             # הוספת הליד ל-CRM
             lead = self.crm_manager.add_lead(
@@ -41,42 +37,62 @@ class WebhookHandler:
             # שליחת התראה למנהלים
             self.crm_manager.notify_new_lead(lead)
             
-            return jsonify({
+            return {
                 'success': True,
                 'lead_id': lead.id,
                 'message': 'Lead added successfully'
-            }), 201
+            }
             
         except Exception as e:
             logger.error(f"Error handling lead: {str(e)}")
-            return jsonify({'error': 'Internal server error'}), 500
+            raise HTTPException(status_code=500, detail="Internal server error")
     
-    def check_status(self):
+    async def check_status(self):
         """בדיקת סטטוס ה-webhook"""
-        return jsonify({
+        return {
             'status': 'active',
             'timestamp': datetime.utcnow().isoformat(),
             'service': 'Telegram CRM Bot'
-        })
+        }
     
-    def health_check(self):
+    async def health_check(self):
         """בדיקת בריאות המערכת"""
-        return jsonify({'status': 'healthy'})
-    
-    def is_active(self):
-        """בדיקה אם ה-webhook פעיל"""
-        return True
-    
-    def run(self, host='0.0.0.0', port=5000):
-        """הרצת שרת ה-webhook"""
-        self.app.run(host=host, port=port, debug=False)
+        return {'status': 'healthy'}
 
-if __name__ == '__main__':
-    # לצורך בדיקה מקומית
-    from crm_manager import CRMManager
-    from database import DatabaseManager
+# יצירת handler גלובלי
+from crm_manager import CRMManager
+from database import DatabaseManager
+
+db = DatabaseManager()
+crm = CRMManager(db)
+handler = WebhookHandler(crm)
+
+@app.post("/{webhook_secret:path}")
+async def webhook_endpoint(webhook_secret: str, request: Request):
+    """Endpoint ראשי ל-webhook"""
+    if webhook_secret != handler.webhook_secret:
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")
     
-    db = DatabaseManager()
-    crm = CRMManager(db)
-    handler = WebhookHandler(crm)
-    handler.run()
+    return await handler.handle_lead(request)
+
+@app.get("/{webhook_secret:path}/status")
+async def status_endpoint(webhook_secret: str):
+    """Endpoint לבדיקת סטטוס"""
+    if webhook_secret != handler.webhook_secret:
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+    
+    return await handler.check_status()
+
+@app.get("/health")
+async def health_endpoint():
+    """Endpoint לבדיקת בריאות"""
+    return await handler.health_check()
+
+@app.get("/")
+async def root():
+    """Endpoint ראשי"""
+    return {
+        "message": "CRM Webhook Handler is running",
+        "status": "active",
+        "timestamp": datetime.utcnow().isoformat()
+    }
