@@ -9,12 +9,12 @@ class Config:
     BOT_TOKEN: str = os.getenv('TELEGRAM_BOT_TOKEN', '')
     
     # Webhook URL
-    WEBHOOK_URL: str = os.getenv('WEBHOOK_URL', '')
+    WEBHOOK_URL: str = os.getenv('RAILWAY_URL', '') + "/webhook"
     
     # Database settings
     DATABASE_URL: str = os.getenv('DATABASE_URL', 'sqlite:///crm_bot.db')
     
-    # Admin user IDs (ניתן להוסיף מזהים של מנהלים)
+    # Admin user IDs
     ADMIN_IDS: list = None
     
     # CRM settings
