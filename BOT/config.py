@@ -1,29 +1,20 @@
 import os
-from dataclasses import dataclass
+from dotenv import load_dotenv
 
-@dataclass
+load_dotenv()
+
 class Config:
-    """מחלקה להגדרות הקונפיגורציה"""
+    # Telegram
+    BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    # רשימת ה-ID של המנהלים בטלגרם (מופרדים בפסיק)
+    ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
     
-    # Telegram Bot Token
-    BOT_TOKEN: str = os.getenv('TELEGRAM_BOT_TOKEN', '')
+    # Webhook / Server
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL", "http://localhost:8000")
+    PORT = int(os.getenv("PORT", 8000))
     
-    # Webhook URL
-    WEBHOOK_URL: str = os.getenv('RAILWAY_URL', '') + "/webhook"
-    
-    # Database settings
-    DATABASE_URL: str = os.getenv('DATABASE_URL', 'sqlite:///crm_bot.db')
-    
-    # Admin user IDs
-    ADMIN_IDS: list = None
-    
-    # CRM settings
-    LEAD_EXPIRY_DAYS: int = 30
-    AUTO_REMINDER_HOURS: int = 24
-    
-    def __post_init__(self):
-        if self.ADMIN_IDS is None:
-            self.ADMIN_IDS = []
+    # Database
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./crm_bot.db")
 
-# יצירת אובייקט קונפיגורציה גלובלי
-config = Config()
+    # CRM Settings
+    CSV_FILENAME = "leads_export.csv"
