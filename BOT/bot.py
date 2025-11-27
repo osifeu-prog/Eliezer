@@ -2,132 +2,146 @@ import os
 import logging
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, WebhookInfo
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
-import json
 from datetime import datetime
-import aiohttp
+import asyncio
 
-# הגדרת לוגר
-logging.basicConfig(level=logging.INFO)
+# הגדרת לוגר מפורט
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # קבלת משתני סביבה
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_PATH = f"/webhook-123"
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://fun-production-8132.up.railway.app") + WEBHOOK_PATH
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # הוסף את ה-chat ID שלך כאן
+WEBHOOK_PATH = "/webhook-123"  # חייב להתאים לכתובת ב-Railway
+WEBHOOK_URL = f"https://fun-production-8132.up.railway.app{WEBHOOK_PATH}"
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
 
 # אתחול בוט ו-dispatcher
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# מדינות עבור FSM
+# אחסון נתונים (בפרודקשן יש להשתמש במסד נתונים אמיתי)
+leads = []
+active_users = set()
+
 class CRMStates(StatesGroup):
     waiting_for_lead_name = State()
     waiting_for_lead_phone = State()
 
-# מילון זמני לאחסון לידים (בפרודקשן יש להשתמש במסד נתונים)
-leads = []
-users = set()
-
-# הגדרת FastAPI עם lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await set_webhook()
+    """ניהול מחזור חיים של האפליקציה"""
+    logger.info("Starting application...")
+    
+    try:
+        # הגדרת webhook
+        await bot.delete_webhook(drop_pending_updates=True)
+        await asyncio.sleep(0.1)
+        
+        await bot.set_webhook(
+            url=WEBHOOK_URL,
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query"]
+        )
+        logger.info(f"✅ Webhook set successfully: {WEBHOOK_URL}")
+        
+        # בדיקת webhook
+        webhook_info = await bot.get_webhook_info()
+        logger.info(f"📋 Webhook info: {webhook_info.url}")
+        logger.info(f"📊 Pending updates: {webhook_info.pending_update_count}")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to set webhook: {e}")
+    
     yield
+    
+    logger.info("Shutting down application...")
     await bot.session.close()
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="Telegram CRM Bot")
 
-async def set_webhook():
-    """הגדרת webhook עבור הבוט"""
+async def safe_send_message(chat_id: int, text: str, **kwargs):
+    """שליחת הודעה בטוחה עם טיפול בשגיאות"""
     try:
-        webhook_info = await bot.get_webhook_info()
-        logger.info(f"Current webhook: {webhook_info.url}")
-        
-        if webhook_info.url != WEBHOOK_URL:
-            await bot.set_webhook(
-                url=WEBHOOK_URL,
-                drop_pending_updates=True
-            )
-            logger.info(f"Webhook set to: {WEBHOOK_URL}")
-        else:
-            logger.info("Webhook already set correctly")
-            
+        await bot.send_message(chat_id, text, **kwargs)
+        return True
     except Exception as e:
-        logger.error(f"Error setting webhook: {e}")
+        logger.error(f"Failed to send message to {chat_id}: {e}")
+        return False
 
-async def send_admin_notification(message: str):
-    """שליחת התראה למנהל"""
-    if ADMIN_CHAT_ID:
-        try:
-            await bot.send_message(ADMIN_CHAT_ID, message)
-        except Exception as e:
-            logger.error(f"Failed to send admin notification: {e}")
-
-# handlers עבור טלגרם
+# ===== TELEGRAM HANDLERS =====
 @dp.message(CommandStart())
-async def on_start(message: Message):
-    """פקודת /start"""
+async def handle_start(message: Message):
+    """טיפול בפקודת /start"""
     try:
         user_id = message.from_user.id
-        users.add(user_id)
+        active_users.add(user_id)
         
+        logger.info(f"👤 User {user_id} started the bot")
+        
+        # יצירת מקלדת
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📊 צפה בלידים", callback_data="view_leads")],
             [InlineKeyboardButton(text="📈 סטטיסטיקות", callback_data="view_stats")],
             [InlineKeyboardButton(text="👥 הוסף ליד", callback_data="add_lead")],
-            [InlineKeyboardButton(text="🔄 סנכרון אתר", callback_data="sync_website")]
+            [InlineKeyboardButton(text="🔄 מידע סנכרון", callback_data="sync_info")]
         ])
         
         welcome_text = (
-            f"ברוך הבא {message.from_user.first_name}!\n\n"
-            "🤖 **בוט CRM למשרד פרסום**\n\n"
-            "אני יכול לעזור לך:\n"
-            "• לנהל לידים מהאתר\n"
-            "• לעקוב אחר סטטיסטיקות\n"
-            "• לסנכרן עם מערכות חיצוניות\n\n"
-            "בחר אפשרות מהתפריט:"
+            f"👋 שלום {message.from_user.first_name}!\n\n"
+            "🤖 **ברוך הבא לבוט CRM למשרד פרסום**\n\n"
+            "✅ הבוט פעיל ומחובר למערכת\n"
+            "📞 ניתן לנהל לידים אוטומטית מהאתר\n"
+            "📈 מעקב סטטיסטיקות בזמן אמת\n\n"
+            "בחר פעולה מהתפריט:"
         )
         
         await message.answer(welcome_text, reply_markup=keyboard)
-        
-        # הודעה למנהל על משתמש חדש
-        await send_admin_notification(
-            f"👤 משתמש חדש בבוט:\n"
-            f"שם: {message.from_user.first_name}\n"
-            f"Username: @{message.from_user.username}\n"
-            f"ID: {user_id}"
-        )
+        logger.info(f"✅ Welcome message sent to user {user_id}")
         
     except Exception as e:
-        logger.error(f"Error in start command: {e}")
+        logger.error(f"❌ Error in start handler: {e}")
+
+@dp.message(Command("help"))
+async def handle_help(message: Message):
+    """טיפול בפקודת /help"""
+    help_text = (
+        "🤖 **בוט CRM - עזרה**\n\n"
+        "**פקודות זמינות:**\n"
+        "/start - התחל שימוש בבוט\n"
+        "/leads - הצג לידים אחרונים\n"
+        "/stats - הצג סטטיסטיקות\n"
+        "/help - הצג עזרה זו\n\n"
+        "**סנכרון אתר:**\n"
+        "הבוט מקבל לידים אוטומטית דרך webhook"
+    )
+    await message.answer(help_text)
 
 @dp.message(Command("leads"))
-async def on_leads(message: Message):
-    """פקודת /leads - הצגת לידים"""
+async def handle_leads(message: Message):
+    """טיפול בפקודת /leads"""
     try:
         if not leads:
-            await message.answer("❌ אין לידים חדשים להצגה.")
+            await message.answer("📝 אין לידים חדשים להצגה.")
             return
         
         leads_text = "📋 **לידים אחרונים:**\n\n"
-        for i, lead in enumerate(leads[-10:], 1):
-            leads_text += f"{i}. **שם:** {lead['name']}\n"
-            leads_text += f"   **טלפון:** {lead['phone']}\n"
-            leads_text += f"   **תאריך:** {lead['date']}\n"
-            if lead.get('email'):
-                leads_text += f"   **אימייל:** {lead['email']}\n"
+        for i, lead in enumerate(leads[-5:], 1):
+            leads_text += f"{i}. **{lead['name']}**\n"
+            leads_text += f"   📞 {lead['phone']}\n"
+            leads_text += f"   📅 {lead['date']}\n"
             if lead.get('source'):
-                leads_text += f"   **מקור:** {lead['source']}\n"
+                leads_text += f"   🌐 {lead['source']}\n"
             leads_text += "─" * 20 + "\n"
         
         await message.answer(leads_text)
@@ -136,20 +150,20 @@ async def on_leads(message: Message):
         await message.answer("❌ אירעה שגיאה בהצגת הלידים.")
 
 @dp.message(Command("stats"))
-async def on_stats(message: Message):
-    """פקודת /stats - הצגת סטטיסטיקות"""
+async def handle_stats(message: Message):
+    """טיפול בפקודת /stats"""
     try:
         total_leads = len(leads)
         today = datetime.now().strftime('%d/%m/%Y')
         today_leads = len([lead for lead in leads if lead['date'].startswith(today)])
-        total_users = len(users)
         
         stats_text = (
             "📊 **סטטיסטיקות CRM:**\n\n"
-            f"👥 **סך הכל לידים:** {total_leads}\n"
+            f"👥 **סך לידים:** {total_leads}\n"
             f"📈 **לידים היום:** {today_leads}\n"
-            f"👤 **משתמשים פעילים:** {total_users}\n"
-            f"🌐 **Webhook:** פעיל\n"
+            f"👤 **משתמשים פעילים:** {len(active_users)}\n"
+            f"🟢 **מערכת:** פעילה\n"
+            f"🌐 **Webhook:** מוגדר\n"
         )
         
         await message.answer(stats_text)
@@ -157,56 +171,28 @@ async def on_stats(message: Message):
         logger.error(f"Error showing stats: {e}")
         await message.answer("❌ אירעה שגיאה בהצגת הסטטיסטיקות.")
 
-@dp.message(Command("help"))
-async def on_help(message: Message):
-    """פקודת /help - הצגת עזרה"""
-    help_text = (
-        "🤖 **בוט CRM למשרד פרסום**\n\n"
-        "**פקודות זמינות:**\n"
-        "/start - התחל שימוש בבוט\n"
-        "/leads - הצג לידים אחרונים\n"
-        "/stats - הצג סטטיסטיקות\n"
-        "/help - הצג עזרה זו\n\n"
-        "**סנכרון עם האתר:**\n"
-        "הבוט מקבל לידים אוטומטית מהאתר דרך webhook בכתובת:\n"
-        f"`POST {WEBHOOK_URL.replace('/webhook-123', '')}/webhook/lead`\n\n"
-        "**פורמט הליד:**\n"
-        "```json\n"
-        "{\n"
-        '  "name": "שם הלקוח",\n'
-        '  "phone": "050-1234567",\n'
-        '  "email": "email@example.com",\n'
-        '  "source": "website",\n'
-        '  "notes": "הערות נוספות"\n'
-        "}\n"
-        "```"
-    )
-    
-    await message.answer(help_text)
-
 @dp.callback_query(F.data == "view_leads")
-async def on_view_leads(callback: types.CallbackQuery):
-    """הצגת לידים בלחיצת כפתור"""
+async def handle_view_leads(callback: types.CallbackQuery):
+    """טיפול בלחיצה על 'צפה בלידים'"""
     try:
         if not leads:
-            await callback.message.edit_text("❌ אין לידים חדשים להצגה.")
+            await callback.message.edit_text("📝 אין לידים חדשים להצגה.")
+            await callback.answer()
             return
         
         leads_text = "📋 **לידים אחרונים:**\n\n"
-        for i, lead in enumerate(leads[-5:], 1):
+        for i, lead in enumerate(leads[-3:], 1):
             leads_text += f"{i}. **{lead['name']}** - {lead['phone']}\n"
-            if lead.get('source'):
-                leads_text += f"   ({lead['source']})\n"
         
         await callback.message.edit_text(leads_text)
         await callback.answer()
     except Exception as e:
-        logger.error(f"Error in view_leads callback: {e}")
-        await callback.answer("❌ אירעה שגיאה.", show_alert=True)
+        logger.error(f"Error in view_leads: {e}")
+        await callback.answer("❌ שגיאה בהצגת לידים", show_alert=True)
 
 @dp.callback_query(F.data == "view_stats")
-async def on_view_stats(callback: types.CallbackQuery):
-    """הצגת סטטיסטיקות בלחיצת כפתור"""
+async def handle_view_stats(callback: types.CallbackQuery):
+    """טיפול בלחיצה על 'סטטיסטיקות'"""
     try:
         total_leads = len(leads)
         today = datetime.now().strftime('%d/%m/%Y')
@@ -214,151 +200,84 @@ async def on_view_stats(callback: types.CallbackQuery):
         
         stats_text = (
             "📊 **סטטיסטיקות:**\n\n"
-            f"👥 סך לידים: {total_leads}\n"
+            f"📋 סך לידים: {total_leads}\n"
             f"📈 היום: {today_leads}\n"
-            f"🟢 מערכת: פעילה\n"
+            f"👥 משתמשים: {len(active_users)}\n"
+            f"🟢 סטטוס: פעיל\n"
         )
         
         await callback.message.edit_text(stats_text)
         await callback.answer()
     except Exception as e:
-        logger.error(f"Error in view_stats callback: {e}")
-        await callback.answer("❌ אירעה שגיאה.", show_alert=True)
+        logger.error(f"Error in view_stats: {e}")
+        await callback.answer("❌ שגיאה בהצגת סטטיסטיקות", show_alert=True)
 
-@dp.callback_query(F.data == "add_lead")
-async def on_add_lead(callback: types.CallbackQuery, state: FSMContext):
-    """הוספת ליד חדש"""
-    try:
-        await callback.message.edit_text("📝 אנא הזן את שם הלקוח:")
-        await state.set_state(CRMStates.waiting_for_lead_name)
-        await callback.answer()
-    except Exception as e:
-        logger.error(f"Error in add_lead callback: {e}")
-        await callback.answer("❌ אירעה שגיאה.", show_alert=True)
+@dp.callback_query(F.data == "sync_info")
+async def handle_sync_info(callback: types.CallbackQuery):
+    """טיפול בלחיצה על 'מידע סנכרון'"""
+    sync_text = (
+        "🔄 **סנכרון עם האתר**\n\n"
+        "**סטטוס:** 🟢 פעיל\n"
+        "**כתובת Webhook:**\n"
+        "`POST https://fun-production-8132.up.railway.app/webhook/lead`\n\n"
+        "**פורמט נתונים:**\n"
+        "```json\n"
+        "{\n"
+        '  "name": "שם הלקוח",\n'
+        '  "phone": "050-1234567",\n'
+        '  "email": "client@example.com",\n'
+        '  "source": "website"\n'
+        "}\n"
+        "```"
+    )
+    
+    await callback.message.edit_text(sync_text)
+    await callback.answer()
 
-@dp.message(CRMStates.waiting_for_lead_name)
-async def on_lead_name_received(message: Message, state: FSMContext):
-    """קבלת שם הלקוח"""
-    try:
-        await state.update_data(lead_name=message.text)
-        await message.answer("📞 אנא הזן את מספר הטלפון של הלקוח:")
-        await state.set_state(CRMStates.waiting_for_lead_phone)
-    except Exception as e:
-        logger.error(f"Error receiving lead name: {e}")
-        await message.answer("❌ אירעה שגיאה. נסה שוב.")
-
-@dp.message(CRMStates.waiting_for_lead_phone)
-async def on_lead_phone_received(message: Message, state: FSMContext):
-    """קבלת טלפון הלקוח ושמירת הליד"""
-    try:
-        data = await state.get_data()
-        lead_name = data.get('lead_name')
-        lead_phone = message.text
-        
-        # שמירת הליד
-        new_lead = {
-            'name': lead_name,
-            'phone': lead_phone,
-            'date': datetime.now().strftime('%d/%m/%Y %H:%M'),
-            'source': 'telegram_bot'
-        }
-        leads.append(new_lead)
-        
-        # שליחת הודעה למשתמש
+@dp.message(F.text)
+async def handle_all_messages(message: Message):
+    """טיפול בכל ההודעות הטקסט"""
+    if message.text and not message.text.startswith('/'):
+        logger.info(f"Received text message from {message.from_user.id}: {message.text}")
         await message.answer(
-            f"✅ **ליד נוסף בהצלחה!**\n\n"
-            f"**שם:** {lead_name}\n"
-            f"**טלפון:** {lead_phone}\n"
-            f"**תאריך:** {new_lead['date']}"
+            "🤖 אני בוט CRM. השתמש בפקודות:\n"
+            "/start - תפריט ראשי\n"
+            "/leads - הצג לידים\n" 
+            "/stats - סטטיסטיקות\n"
+            "/help - עזרה"
         )
-        
-        # שליחת התראה למנהלים
-        notification_text = (
-            f"👤 **ליד חדש נוסף!**\n\n"
-            f"**שם:** {lead_name}\n"
-            f"**טלפון:** {lead_phone}\n"
-            f"**מקור:** בוט טלגרם\n"
-            f"**תאריך:** {new_lead['date']}"
-        )
-        
-        # שליחה למנהל
-        await send_admin_notification(notification_text)
-        
-        # שליחה לכל המשתמשים הרשומים
-        for user_id in users:
-            if user_id != message.from_user.id:  # לא לשלוח למי שהוסיף
-                try:
-                    await bot.send_message(user_id, notification_text)
-                except Exception as e:
-                    logger.error(f"Failed to send notification to user {user_id}: {e}")
-        
-        await state.clear()
-        
-    except Exception as e:
-        logger.error(f"Error receiving lead phone: {e}")
-        await message.answer("❌ אירעה שגיאה בשמירת הליד.")
-        await state.clear()
 
-@dp.callback_query(F.data == "sync_website")
-async def on_sync_website(callback: types.CallbackQuery):
-    """הצגת מידע על סנכרון עם האתר"""
-    try:
-        sync_text = (
-            "🔄 **סנכרון עם האתר**\n\n"
-            "**סטטוס Webhook:** 🟢 פעיל\n"
-            f"**כתובת:** `{WEBHOOK_URL.replace('/webhook-123', '')}`\n\n"
-            "**לקבלת לידים מהאתר, שלח POST request ל:**\n"
-            "`/webhook/lead`\n\n"
-            "**פורמט הנתונים:**\n"
-            "```json\n"
-            "{\n"
-            '  "name": "שם הלקוח",\n'
-            '  "phone": "050-1234567",\n'
-            '  "email": "email@example.com",\n'
-            '  "source": "website",\n'
-            '  "notes": "הערות נוספות"\n'
-            "}\n"
-            "```"
-        )
-        
-        await callback.message.edit_text(sync_text)
-        await callback.answer()
-    except Exception as e:
-        logger.error(f"Error in sync_website callback: {e}")
-        await callback.answer("❌ אירעה שגיאה.", show_alert=True)
-
-# endpoint עבור webhook מטלגרם
+# ===== FASTAPI ENDPOINTS =====
 @app.post(WEBHOOK_PATH)
-async def handle_telegram_update(request: Request):
+async def handle_telegram_webhook(request: Request):
     """טיפול בעדכונים מטלגרם"""
     try:
         update_data = await request.json()
+        logger.info(f"📨 Received Telegram update: {update_data}")
+        
         update = types.Update(**update_data)
         await dp.feed_update(bot, update)
+        
         return JSONResponse(content={"status": "ok"})
     except Exception as e:
-        logger.error(f"Error handling Telegram update: {e}")
+        logger.error(f"❌ Error handling Telegram update: {e}")
         return JSONResponse(
-            content={"status": "error", "message": str(e)}, 
+            content={"status": "error", "message": str(e)},
             status_code=500
         )
 
-# endpoint לקבלת לידים מהאתר
 @app.post("/webhook/lead")
-async def handle_webhook_lead(request: Request):
+async def handle_website_lead(request: Request):
     """טיפול בלידים מהאתר"""
     try:
         data = await request.json()
-        logger.info(f"Received lead from website: {data}")
+        logger.info(f"🌐 Received lead from website: {data}")
         
-        # וידוא שדות חובה
+        # ולידציה
         if not data.get('name') or not data.get('phone'):
-            raise HTTPException(
-                status_code=400, 
-                detail="Missing required fields: name, phone"
-            )
+            raise HTTPException(400, "Missing required fields: name, phone")
         
-        # יצירת הליד
+        # יצירת ליד
         new_lead = {
             'name': data['name'],
             'phone': data['phone'],
@@ -367,102 +286,91 @@ async def handle_webhook_lead(request: Request):
             'notes': data.get('notes', ''),
             'date': datetime.now().strftime('%d/%m/%Y %H:%M')
         }
-        
         leads.append(new_lead)
         
-        # שליחת התראה למשתמשים
+        # התראה למשתמשים
         lead_message = (
-            f"🌐 **ליד חדש מהאתר!**\n\n"
+            f"🎯 **ליד חדש!**\n\n"
             f"**שם:** {new_lead['name']}\n"
             f"**טלפון:** {new_lead['phone']}\n"
-            f"**אימייל:** {new_lead['email'] or 'לא צוין'}\n"
             f"**מקור:** {new_lead['source']}\n"
-            f"**הערות:** {new_lead['notes'] or 'אין'}\n"
             f"**תאריך:** {new_lead['date']}"
         )
         
-        # שליחה למנהל
-        await send_admin_notification(lead_message)
+        # שליחה לכל המשתמשים הפעילים
+        sent_count = 0
+        for user_id in active_users:
+            if await safe_send_message(user_id, lead_message):
+                sent_count += 1
         
-        # שליחה לכל המשתמשים הרשומים
-        for user_id in users:
-            try:
-                await bot.send_message(user_id, lead_message)
-            except Exception as e:
-                logger.error(f"Failed to send lead notification to user {user_id}: {e}")
+        logger.info(f"📤 Lead notification sent to {sent_count} users")
         
-        return JSONResponse(
-            content={
-                "status": "success", 
-                "message": "Lead added successfully",
-                "lead_id": len(leads)
-            }
-        )
-    
+        return {
+            "status": "success",
+            "message": "Lead added successfully",
+            "lead_id": len(leads),
+            "notifications_sent": sent_count
+        }
+        
     except Exception as e:
-        logger.error(f"Error handling webhook lead: {e}")
+        logger.error(f"❌ Error handling website lead: {e}")
         return JSONResponse(
-            content={"status": "error", "message": str(e)}, 
+            content={"status": "error", "message": str(e)},
             status_code=500
         )
 
-# endpoint לבדיקת סטטוס
 @app.get("/health")
 async def health_check():
-    """בדיקת בריאות השרת"""
+    """בדיקת בריאות"""
     try:
-        # בדיקה שהבוט פעיל
+        webhook_info = await bot.get_webhook_info()
         bot_info = await bot.get_me()
         
-        return JSONResponse(content={
+        return {
             "status": "healthy",
-            "service": "Telegram CRM Bot",
-            "bot_username": bot_info.username,
+            "bot": bot_info.username,
+            "webhook_url": webhook_info.url,
+            "webhook_pending_updates": webhook_info.pending_update_count,
             "total_leads": len(leads),
-            "active_users": len(users),
-            "webhook_url": WEBHOOK_URL
-        })
+            "active_users": len(active_users),
+            "timestamp": datetime.now().isoformat()
+        }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        return JSONResponse(
-            content={"status": "unhealthy", "error": str(e)},
-            status_code=500
-        )
+        return {"status": "unhealthy", "error": str(e)}
 
-# endpoint ראשי
 @app.get("/")
 async def root():
     """דף הבית"""
     return {
-        "message": "Telegram CRM Bot is running!",
+        "message": "🤖 Telegram CRM Bot is Running!",
+        "status": "active",
         "endpoints": {
             "health": "/health",
-            "webhook_lead": "/webhook/lead",
-            "telegram_webhook": WEBHOOK_PATH
+            "webhook_lead": "POST /webhook/lead",
+            "telegram_webhook": f"POST {WEBHOOK_PATH}"
         },
-        "stats": {
-            "total_leads": len(leads),
-            "active_users": len(users)
-        }
+        "usage": "Send /start to the bot on Telegram"
     }
 
-# endpoint לקבלת סטטיסטיקות
-@app.get("/stats")
-async def api_stats():
-    """API לסטטיסטיקות"""
-    total_leads = len(leads)
-    today = datetime.now().strftime('%d/%m/%Y')
-    today_leads = len([lead for lead in leads if lead['date'].startswith(today)])
-    
-    return {
-        "total_leads": total_leads,
-        "today_leads": today_leads,
-        "active_users": len(users),
-        "sources": {
-            lead.get('source', 'unknown'): len([l for l in leads if l.get('source') == lead.get('source')])
-            for lead in leads
+@app.get("/debug")
+async def debug_info():
+    """מידע דיבאג"""
+    try:
+        webhook_info = await bot.get_webhook_info()
+        return {
+            "webhook_url": webhook_info.url,
+            "pending_updates": webhook_info.pending_update_count,
+            "last_error": webhook_info.last_error_message,
+            "active_users_count": len(active_users),
+            "leads_count": len(leads),
+            "environment": {
+                "bot_token_set": bool(BOT_TOKEN),
+                "webhook_url_set": bool(WEBHOOK_URL)
+            }
         }
-    }
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
