@@ -1,35 +1,27 @@
-import sqlite3
-from config import logger
+import asyncpg
+from config import DATABASE_URL, logger
 
-DB_NAME = "bot_database.db"
+pool = None
 
-def get_connection():
+async def init_db_pool():
+    """יצירת Pool של חיבורים למסד הנתונים"""
+    global pool
+    if not DATABASE_URL:
+        logger.error("DATABASE_URL is missing!")
+        return
+
     try:
-        conn = sqlite3.connect(DB_NAME)
-        conn.row_factory = sqlite3.Row
-        return conn
+        # תיקון קטן לפורמט ה-URL אם Railway נותן postgres://
+        dsn = DATABASE_URL.replace("postgres://", "postgresql://")
+        pool = await asyncpg.create_pool(dsn)
+        logger.info("Database pool created successfully.")
     except Exception as e:
-        logger.error(f"Database connection error: {e}")
-        return None
+        logger.error(f"Failed to create DB pool: {e}")
 
-def execute_query(query, args=(), fetch_one=False, fetch_all=False):
-    conn = get_connection()
-    if not conn:
-        return None
-    
-    cursor = conn.cursor()
-    try:
-        cursor.execute(query, args)
-        if fetch_one:
-            result = cursor.fetchone()
-        elif fetch_all:
-            result = cursor.fetchall()
-        else:
-            conn.commit()
-            result = True
-        return result
-    except Exception as e:
-        logger.error(f"Query Error: {e}")
-        return None
-    finally:
-        conn.close()
+async def get_db_pool():
+    return pool
+
+async def close_db_pool():
+    if pool:
+        await pool.close()
+        logger.info("Database pool closed.")
