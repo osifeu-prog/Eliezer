@@ -58,4 +58,16 @@ class CRMManager:
         async with pool.acquire() as conn:
             return await conn.fetchval("SELECT lead_score FROM users WHERE user_id = $1", user_id)
 
+    @staticmethod
+    async def get_referral_count(user_id):
+        """סופר כמה משתמשים הופנו על ידי המשתמש הזה"""
+        pool = await get_db_pool()
+        if not pool: return 0
+        async with pool.acquire() as conn:
+            # סופר כמה רשומות יש בטבלת users שבהן referred_by הוא המשתמש הנוכחי
+            count = await conn.fetchval("""
+                SELECT COUNT(*) FROM users WHERE referred_by = $1
+            """, user_id)
+            return count or 0
+
 crm = CRMManager()
