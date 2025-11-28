@@ -1,17 +1,10 @@
-"""
-סקריפט לאתחול מסד הנתונים
-"""
-import logging
-from database import db_manager
+from database import engine, Base
+# Import your models here
+# from your_models_file import YourModel
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+def create_tables():
+    Base.metadata.create_all(bind=engine)
 
 if __name__ == "__main__":
-    try:
-        logger.info("🔧 Initializing database tables...")
-        db_manager.init_db()
-        logger.info("✅ Database tables created successfully!")
-    except Exception as e:
-        logger.error(f"❌ Failed to create tables: {e}")
-        exit(1)
+    create_tables()
+    print("Tables created successfully")
