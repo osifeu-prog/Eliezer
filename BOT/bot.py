@@ -103,7 +103,6 @@ async def handle_ai_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if ai_service.use_openai: 
         try:
             intent_response = await ai_service.get_response(intent_prompt)
-            # מנקה את התגובה כדי לקבל רק את שם הקטגוריה
             intent_type = intent_response.strip().replace("'", "").split('\n')[0] 
         except Exception as e:
             logger.warning(f"AI intent analysis failed: {e}")
@@ -124,11 +123,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     
     if data == "get_qr":
-        # ניקוד בונוס על יצירת QR
         await crm.update_lead_score(user.id, 2)
         bot_username = context.bot.username
         
-        # לצורך הדוגמה, נשתמש ב-ID כקמפיין ברירת מחדל ב-QR האישי
         qr_bio = generate_user_qr(bot_username, user.id, campaign_source="SHARE") 
         await query.message.reply_photo(photo=qr_bio, caption="זה קוד ה-QR האישי שלך!\nכל מי שיסרוק אותו יירשם תחתיך (מקור: SHARE).")
     
@@ -144,8 +141,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "my_status":
         score = await crm.get_user_lead_score(user.id)
-        # מעקב אחר הפניות
+        # תיקון: קריאה לפונקציה החדשה ב-CRM Manager
         referrals = await crm.get_referral_count(user.id)
+        
         await query.edit_message_text(f"📊 **הסטטוס שלך**\n⭐ ניקוד הליד שלך: {score}/10\n👥 אנשים שהצטרפו דרכך: {referrals}")
 
     elif data == "admin_panel":
@@ -177,7 +175,6 @@ async def export_data_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     csv_file = await fetch_all_users_csv()
     
     if csv_file:
-        # שליחת הקובץ ב-BytesI/O
         csv_file_bytes = io.BytesIO(csv_file.getvalue().encode('utf-8'))
         csv_file_bytes.name = f'eliezer_leads_{datetime.date.today()}.csv'
         await context.bot.send_document(
