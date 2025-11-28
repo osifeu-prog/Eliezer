@@ -19,7 +19,7 @@ ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
 LOG_GROUP_ID = os.getenv("LOG_GROUP_ID") 
 SUPPORT_GROUP_ID = os.getenv("SUPPORT_GROUP_ID")
 
-# משתנים חדשים לניהול
+# משתנים לניהול
 DATABASE_URL = os.getenv("DATABASE_URL")
 DB_EXPORT_PASSKEY = os.getenv("DB_EXPORT_PASSKEY") # סיסמה סודית לייצוא נתונים
 
