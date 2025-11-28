@@ -3,3 +3,9 @@ fastapi
 uvicorn
 pydantic
 aiofiles
+asyncpg
+openai
+huggingface_hub
+qrcode[pil]
+pillow
+python-multipart
