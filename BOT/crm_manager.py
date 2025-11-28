@@ -1,5 +1,4 @@
 from database import get_db_pool, logger
-import asyncpg
 
 class CRMManager:
     @staticmethod
@@ -35,6 +34,7 @@ class CRMManager:
         if not pool: return
 
         async with pool.acquire() as conn:
+            # שימוש ב-LEAST כדי להגביל לניקוד מקסימלי 10
             await conn.execute("""
                 UPDATE users SET lead_score = LEAST(lead_score + $1, 10)
                 WHERE user_id = $2
@@ -57,6 +57,5 @@ class CRMManager:
         if not pool: return 1
         async with pool.acquire() as conn:
             return await conn.fetchval("SELECT lead_score FROM users WHERE user_id = $1", user_id)
-
 
 crm = CRMManager()
