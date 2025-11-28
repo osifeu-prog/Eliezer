@@ -16,11 +16,12 @@ PORT = int(os.getenv("PORT", 8080))
 
 # ניהול הרשאות וקבוצות
 ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
-LOG_GROUP_ID = os.getenv("LOG_GROUP_ID")  # קבוצה לדיווח על משתמשים חדשים
-SUPPORT_GROUP_ID = os.getenv("SUPPORT_GROUP_ID")  # קבוצה לפניות תמיכה
+LOG_GROUP_ID = os.getenv("LOG_GROUP_ID") 
+SUPPORT_GROUP_ID = os.getenv("SUPPORT_GROUP_ID")
 
-# מסד נתונים
-DATABASE_URL = os.getenv("DATABASE_URL")  # Railway מספק את זה אוטומטית
+# משתנים חדשים לניהול
+DATABASE_URL = os.getenv("DATABASE_URL")
+DB_EXPORT_PASSKEY = os.getenv("DB_EXPORT_PASSKEY") # סיסמה סודית לייצוא נתונים
 
 # AI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
