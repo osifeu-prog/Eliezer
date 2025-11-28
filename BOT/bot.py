@@ -7,6 +7,7 @@ from qr_generator import generate_user_qr
 from database import fetch_all_users_csv
 import datetime
 import io
+import re
 
 # --- פונקציות עזר ותזמון ---
 
@@ -25,7 +26,7 @@ async def send_initial_followup(context: ContextTypes.DEFAULT_TYPE):
             chat_id=user_id, 
             text="👋 היי שוב! רציתי לוודא שקיבלת את כל המידע שאתה צריך. יש שאלה ספציפית שתרצה לשאול?"
         )
-        await crm.update_lead_score(user_id, 1) # בונוס קטן
+        await crm.update_lead_score(user_id, 1) 
     except Exception as e:
         logger.warning(f"Failed to send followup to {user_id}: {e}")
 
@@ -51,17 +52,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if args and args[0]:
         param = args[0]
-        if '_' in param:
-            # קמפיין מורכב: CMP_REFERRER
-            parts = param.split('_')
-            campaign_source = parts[0]
-            if len(parts) > 1 and parts[1].isdigit():
-                referrer_id = int(parts[1])
+        # ניתוח קוד קמפיין מורכב (Campaign_ReferrerID) או פשוט
+        match = re.match(r'([A-Za-z0-9]+)_(\d+)', param)
+        if match:
+            campaign_source = match.group(1)
+            referrer_id = int(match.group(2))
         elif param.isdigit():
-            # הפניה פשוטה
             referrer_id = int(param)
         else:
-            # קמפיין פשוט
             campaign_source = param
             
     # 2. רישום ל-DB
@@ -71,7 +69,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedule_followup(context, user.id)
     
     # 4. עדכון קבוצת לוגים
-    log_msg = f"🔔 **ליד חדש!** (ציון: 1)\nID: {user.id}\nמקור: {campaign_source or 'ישיר'}"
+    score = await crm.get_user_lead_score(user.id)
+    log_msg = f"🔔 **ליד חדש!** (ציון: {score})\nID: {user.id}\nמקור: {campaign_source or 'ישיר'}"
     if referrer_id:
         log_msg += f" (הופנה ע\"י {referrer_id})"
     await notify_log_group(context, log_msg)
@@ -95,17 +94,17 @@ async def handle_ai_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     user_id = update.effective_user.id
     
-    # עדכון ניקוד הליד על אינטראקציה
     await crm.update_lead_score(user_id, 1)
 
-    # 1. ניתוח כוונות באמצעות AI (רק אם מפתח OpenAI קיים)
-    intent_prompt = f"סווג את כוונת המשתמש הבאה לקטגוריה אחת: 'התעניינות במחיר', 'בקשת תמיכה', 'שאלה כללית', 'אחר'. טקסט: {user_text}"
+    # 1. ניתוח כוונות באמצעות AI
+    intent_prompt = f"סווג את כוונת המשתמש הבאה לקטגוריה אחת בלבד. התשובה שלך תהיה רק שם הקטגוריה: 'התעניינות במחיר', 'בקשת תמיכה', 'שאלה כללית', 'בקשת חזרה טלפונית', 'אחר'. טקסט: {user_text}"
     intent_type = "שאלה כללית"
     
-    if ai_service.use_openai: # נשתמש ב-OpenAI לניתוח כי הוא טוב יותר בסיווג
+    if ai_service.use_openai: 
         try:
             intent_response = await ai_service.get_response(intent_prompt)
-            intent_type = intent_response.strip().replace("'", "").split('\n')[0]
+            # מנקה את התגובה כדי לקבל רק את שם הקטגוריה
+            intent_type = intent_response.strip().replace("'", "").split('\n')[0] 
         except Exception as e:
             logger.warning(f"AI intent analysis failed: {e}")
             
@@ -123,10 +122,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
     user = query.from_user
+    
+    if data == "get_qr":
+        # ניקוד בונוס על יצירת QR
+        await crm.update_lead_score(user.id, 2)
+        bot_username = context.bot.username
+        
+        # לצורך הדוגמה, נשתמש ב-ID כקמפיין ברירת מחדל ב-QR האישי
+        qr_bio = generate_user_qr(bot_username, user.id, campaign_source="SHARE") 
+        await query.message.reply_photo(photo=qr_bio, caption="זה קוד ה-QR האישי שלך!\nכל מי שיסרוק אותו יירשם תחתיך (מקור: SHARE).")
+    
+    elif data == "support_req":
+        if SUPPORT_GROUP_ID:
+            # מעדכן את הניקוד על פנייה יזומה לתמיכה
+            await crm.update_lead_score(user.id, 3) 
+            text = f"🆘 **בקשת תמיכה חדשה (ציון גבוה)**\nמאת: {user.first_name} ({user.id})\nיוזר: @{user.username}\n\nנא לפנות אליו בפרטי."
+            await context.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=text, parse_mode='Markdown')
+            await query.edit_message_text("הבקשה נשלחה לצוות התמיכה. ניצור איתך קשר בהקדם!")
+        else:
+            await query.edit_message_text("מערכת התמיכה אינה מוגדרת כרגע.")
 
-    # ... לוגיקת QR, Support ו-My Status נשארת כפי שהייתה
+    elif data == "my_status":
+        score = await crm.get_user_lead_score(user.id)
+        # מעקב אחר הפניות
+        referrals = await crm.get_referral_count(user.id)
+        await query.edit_message_text(f"📊 **הסטטוס שלך**\n⭐ ניקוד הליד שלך: {score}/10\n👥 אנשים שהצטרפו דרכך: {referrals}")
 
-    if data == "admin_panel":
+    elif data == "admin_panel":
         if user.id not in ADMIN_IDS:
             await query.edit_message_text("אין לך גישה.")
             return
@@ -134,11 +156,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stats = await crm.get_stats()
         text = (
             f"🔒 **פאנל ניהול**\n"
-            f"👥 משתמשים: {stats['total_users']}\n"
+            f"👥 משתמשים רשומים: {stats['total_users']}\n"
             f"⭐ ניקוד ממוצע: {stats['avg_score']}\n"
             f"\nכדי לייצא נתונים, השתמש בפקודה:\n`/export [סיסמה סודית]`"
         )
-        await query.edit_message_text(text)
+        await query.edit_message_text(text, parse_mode='Markdown')
 
 async def export_data_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -152,11 +174,10 @@ async def export_data_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         
     await update.message.reply_text("מייצא נתונים... אנא המתן.")
     
-    # קבלת הנתונים כקובץ CSV בזיכרון
     csv_file = await fetch_all_users_csv()
     
     if csv_file:
-        # שליחת הקובץ
+        # שליחת הקובץ ב-BytesI/O
         csv_file_bytes = io.BytesIO(csv_file.getvalue().encode('utf-8'))
         csv_file_bytes.name = f'eliezer_leads_{datetime.date.today()}.csv'
         await context.bot.send_document(
@@ -171,7 +192,6 @@ async def export_data_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 def create_bot_application():
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     
-    # הוספת job_queue לפקודות
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("export", export_data_command))
     application.add_handler(CallbackQueryHandler(button_handler))
