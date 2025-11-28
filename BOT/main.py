@@ -11,37 +11,42 @@ bot_app = create_bot_application()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """פונקציית Lifecycle שמטפלת באתחול וסגירת משאבים"""
     logger.info("Starting up...")
     
-    # 1. חיבור למסד נתונים
+    # 1. חיבור ואיחול DB
     await init_db_pool()
-    # 2. יצירת טבלאות
     await create_tables()
     
-    # 3. הפעלת הבוט
+    # 2. הפעלת הבוט וה-JobQueue
     await bot_app.initialize()
     await bot_app.start()
+    await bot_app.job_queue.start() # מפעיל את מנגנון התזמון
     
-    # 4. הגדרת Webhook
+    # 3. הגדרת Webhook
     webhook_path = f"{WEBHOOK_URL}/telegram"
     logger.info(f"Setting webhook: {webhook_path}")
     await bot_app.bot.set_webhook(url=webhook_path)
     
     yield
     
+    # --- Shutdown ---
     logger.info("Shutting down...")
+    await bot_app.job_queue.stop()
     await bot_app.stop()
     await bot_app.shutdown()
     await close_db_pool()
+    
 
 app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 async def health_check():
-    return {"status": "ok", "system": "Eliezer CRM AI"}
+    return {"status": "ok", "system": "Eliezer Advanced CRM AI"}
 
 @app.post("/telegram")
 async def telegram_webhook(request: Request):
+    """הנתיב שאליו טלגרם שולח עדכונים"""
     try:
         body = await request.json()
         await process_webhook_update(bot_app, body)
