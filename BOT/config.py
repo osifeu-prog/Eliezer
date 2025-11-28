@@ -17,7 +17,9 @@ PORT = int(os.getenv("PORT", 8080))
 # ניהול הרשאות וקבוצות
 ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
 LOG_GROUP_ID = os.getenv("LOG_GROUP_ID") 
-SUPPORT_GROUP_ID = os.getenv("SUPPORT_GROUP_ID")
+SUPPORT_GROUP_ID = os.getenv("SUPPORT_GROUP_ID") # חובה מספר שלילי
+if SUPPORT_GROUP_ID:
+    SUPPORT_GROUP_ID = int(SUPPORT_GROUP_ID)
 
 # משתנים לניהול
 DATABASE_URL = os.getenv("DATABASE_URL")
