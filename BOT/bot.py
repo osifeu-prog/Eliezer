@@ -8,23 +8,37 @@ logger = logging.getLogger(__name__)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start command"""
     user = update.effective_user
-    await update.message.reply_html(
-        rf"Hi {user.mention_html()}! Welcome to the bot.",
-        reply_markup=None
-    )
+    logger.info(f"User {user.id} started the bot")
+    
+    welcome_text = f"""
+👋 שלום {user.first_name}!
+
+אני בוט טלגרם לדוגמה. 
+אני יכול לעזור עם:
+
+/start - התחל את השיחה
+/help - הצג עזרה
+    """
+    
+    await update.message.reply_text(welcome_text)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /help command"""
     help_text = """
-Available commands:
-/start - Start the bot
-/help - Show this help message
+📖 **עזרה - פקודות זמינות:**
+
+/start - התחל את הבוט
+/help - הצג הודעה זו
+
+💡 אתה יכול גם לשלוח הודעה רגילה ואני אחזיר אותה.
     """
     await update.message.reply_text(help_text)
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Echo the user's message"""
-    await update.message.reply_text(f"You said: {update.message.text}")
+    user_message = update.message.text
+    logger.info(f"Echoing message from user {update.effective_user.id}: {user_message}")
+    await update.message.reply_text(f"📝 אתה אמרת: {user_message}")
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log errors caused by updates"""
