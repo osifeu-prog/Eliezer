@@ -3,34 +3,41 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 from config import TOKEN
 import logging
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
 logger = logging.getLogger(__name__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /start is issued."""
+    """Handle /start command"""
     user = update.effective_user
     await update.message.reply_html(
         rf"Hi {user.mention_html()}! Welcome to the bot.",
+        reply_markup=None
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /help is issued."""
-    await update.message.reply_text("Help command - I can echo your messages!")
+    """Handle /help command"""
+    help_text = """
+Available commands:
+/start - Start the bot
+/help - Show this help message
+    """
+    await update.message.reply_text(help_text)
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
+    """Echo the user's message"""
     await update.message.reply_text(f"You said: {update.message.text}")
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Log errors."""
+    """Log errors caused by updates"""
     logger.error(f"Exception while handling an update: {context.error}")
 
 def create_application() -> Application:
-    """Create and configure the Application with handlers."""
-    # Create Application
-    application = Application.builder().token(TOKEN).build()
+    """Create and configure the bot application"""
+    # Build application
+    application = (
+        Application.builder()
+        .token(TOKEN)
+        .build()
+    )
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
