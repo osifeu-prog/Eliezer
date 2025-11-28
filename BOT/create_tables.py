@@ -26,8 +26,8 @@ async def create_tables():
                     username TEXT,
                     first_name TEXT,
                     referred_by BIGINT,
-                    campaign_source TEXT,          -- עמודה חדשה
-                    lead_score INTEGER DEFAULT 1,  -- עמודה חדשה
+                    campaign_source TEXT,          
+                    lead_score INTEGER DEFAULT 1,  
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -38,7 +38,7 @@ async def create_tables():
                     id SERIAL PRIMARY KEY,
                     user_id BIGINT,
                     message_content TEXT,
-                    intent_type TEXT,              -- עמודה חדשה
+                    intent_type TEXT,              
                     source TEXT DEFAULT 'bot',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
