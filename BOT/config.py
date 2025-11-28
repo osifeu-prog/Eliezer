@@ -9,14 +9,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# משתני סביבה
+# טוקנים ופרטי בוט
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-ADMIN_IDS = os.getenv("ADMIN_IDS", "").split(",")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 
-# בדיקה שמשתנים קריטיים קיימים
+# ניהול הרשאות וקבוצות
+ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
+LOG_GROUP_ID = os.getenv("LOG_GROUP_ID")  # קבוצה לדיווח על משתמשים חדשים
+SUPPORT_GROUP_ID = os.getenv("SUPPORT_GROUP_ID")  # קבוצה לפניות תמיכה
+
+# מסד נתונים
+DATABASE_URL = os.getenv("DATABASE_URL")  # Railway מספק את זה אוטומטית
+
+# AI
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+
+# וודא שהטוקן קיים
 if not TELEGRAM_BOT_TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN is missing!")
-if not WEBHOOK_URL:
-    logger.warning("WEBHOOK_URL is missing! Webhook might not work.")
+    logger.error("Must provide TELEGRAM_BOT_TOKEN!")
