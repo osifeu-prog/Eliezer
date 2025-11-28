@@ -15,6 +15,13 @@ class AIService:
             self.use_hf = True
             
     async def get_response(self, user_text):
+        """שולף תגובה מ-AI (נותן עדיפות ל-OpenAI)"""
+        
+        # תגובה פשוטה אם אף מפתח לא מוגדר
+        if not self.use_openai and not self.use_hf:
+            return "מערכת ה-AI אינה מוגדרת כרגע. אנא פנה לתמיכה."
+
+        # שימוש ב-OpenAI
         if self.use_openai:
             try:
                 response = await openai.ChatCompletion.acreate(
@@ -24,21 +31,20 @@ class AIService:
                 return response.choices[0].message.content
             except Exception as e:
                 logger.error(f"OpenAI Error: {e}")
-                return "מצטער, יש לי בעיה בתקשורת כרגע."
                 
-        elif self.use_hf:
+        # שימוש ב-HuggingFace כחלופה/גיבוי
+        if self.use_hf:
             try:
-                # דוגמה למודל פתוח ומהיר, ניתן להחליף
+                # מומלץ להשתמש במודל פתוח ומהיר, לדוגמה:
                 output = self.hf_client.text_generation(
                     user_text, 
-                    model="google/flan-t5-large", 
+                    model="google/flan-t5-large", # ניתן להחליף למודל בעברית טוב יותר
                     max_new_tokens=100
                 )
                 return output
             except Exception as e:
                 logger.error(f"HuggingFace Error: {e}")
-                return "מצטער, לא הצלחתי לעבד את הבקשה."
         
-        return "מערכת ה-AI אינה מוגדרת כרגע."
+        return "מצטער, חווינו שגיאה בכל המערכות החכמות."
 
 ai_service = AIService()
