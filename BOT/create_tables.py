@@ -1,6 +1,7 @@
 from database import get_db_pool, logger
 
 async def create_tables():
+    """יוצר את סכמת הטבלאות ב-PostgreSQL"""
     pool = await get_db_pool()
     if not pool:
         return
@@ -14,8 +15,8 @@ async def create_tables():
                     username TEXT,
                     first_name TEXT,
                     referred_by BIGINT,
-                    campaign_source TEXT,          -- חדש: קוד קמפיין מ-UTM/Start Param
-                    lead_score INTEGER DEFAULT 1,  -- חדש: ניקוד הליד (1-10)
+                    campaign_source TEXT,          
+                    lead_score INTEGER DEFAULT 1,  
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -26,7 +27,7 @@ async def create_tables():
                     id SERIAL PRIMARY KEY,
                     user_id BIGINT,
                     message_content TEXT,
-                    intent_type TEXT,              -- חדש: סיווג כוונות ע"י AI
+                    intent_type TEXT,              
                     source TEXT DEFAULT 'bot',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
