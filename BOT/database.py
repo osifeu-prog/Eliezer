@@ -2,15 +2,18 @@ import asyncpg
 from config import DATABASE_URL, logger
 import io
 import csv
+import datetime
 
 pool = None
 
 async def init_db_pool():
+    """יצירת Pool של חיבורים למסד הנתונים PostgreSQL"""
     global pool
     if not DATABASE_URL:
         logger.error("DATABASE_URL is missing!")
         return
     try:
+        # asyncpg דורש postgresql://
         dsn = DATABASE_URL.replace("postgres://", "postgresql://")
         pool = await asyncpg.create_pool(dsn)
         logger.info("Database pool created successfully.")
@@ -32,7 +35,6 @@ async def fetch_all_users_csv():
 
     async with pool.acquire() as conn:
         try:
-            # שלוף את כל העמודות הרלוונטיות
             records = await conn.fetch("""
                 SELECT user_id, username, first_name, referred_by, campaign_source, lead_score, created_at 
                 FROM users 
@@ -42,7 +44,6 @@ async def fetch_all_users_csv():
             if not records:
                 return None
 
-            # יצירת קובץ בזיכרון
             output = io.StringIO()
             writer = csv.writer(output)
             
@@ -52,7 +53,6 @@ async def fetch_all_users_csv():
             
             # כתיבת נתונים
             for record in records:
-                # הופך את ה-record Object לרשימה של ערכים
                 row = [record[h] for h in headers]
                 writer.writerow(row)
 
