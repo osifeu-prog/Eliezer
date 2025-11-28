@@ -1,35 +1,34 @@
-from database import get_connection, logger
+from database import get_db_pool, logger
 
-def init_db():
-    conn = get_connection()
-    if conn:
-        cursor = conn.cursor()
-        
-        # טבלת משתמשים לדוגמה
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY,
-                username TEXT,
-                first_name TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # טבלת לוגים או CRM פנימי
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS crm_leads (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                status TEXT DEFAULT 'new',
-                note TEXT
-            )
-        """)
-        
-        conn.commit()
-        conn.close()
-        logger.info("Database tables created successfully.")
-    else:
-        logger.error("Failed to connect to DB for initialization.")
+async def create_tables():
+    pool = await get_db_pool()
+    if not pool:
+        return
 
-if __name__ == "__main__":
-    init_db()
+    async with pool.acquire() as conn:
+        try:
+            # טבלת משתמשים
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id BIGINT PRIMARY KEY,
+                    username TEXT,
+                    first_name TEXT,
+                    referred_by BIGINT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # טבלת CRM / לידים
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS crm_leads (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT,
+                    message_content TEXT,
+                    source TEXT DEFAULT 'bot',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            logger.info("Tables created/verified successfully.")
+        except Exception as e:
+            logger.error(f"Error creating tables: {e}")
