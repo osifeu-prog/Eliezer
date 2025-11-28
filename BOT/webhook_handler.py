@@ -3,6 +3,7 @@ from telegram.ext import Application
 from config import logger
 
 async def process_webhook_update(application: Application, request_body: dict):
+    """מקבל את ה-JSON מ-FastAPI ומעביר אותו ל-Bot Application"""
     try:
         update = Update.de_json(request_body, application.bot)
         await application.process_update(update)
