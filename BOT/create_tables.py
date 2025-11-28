@@ -3,9 +3,6 @@ from database import get_db_pool, logger
 async def create_tables():
     """
     יוצר את סכמת הטבלאות ב-PostgreSQL.
-    
-    שימו לב: פקודות DROP TABLE הן זמניות! 
-    לאחר שהבוט עולה ועובד, יש להסיר שתי פקודות אלו (DROP TABLE) כדי למנוע מחיקת נתונים עתידית.
     """
     pool = await get_db_pool()
     if not pool:
@@ -13,12 +10,6 @@ async def create_tables():
 
     async with pool.acquire() as conn:
         try:
-            # שלב 1 (זמני): מחיקת הטבלאות הישנות כדי לאפשר יצירה מחדש עם סכמה מעודכנת.
-            await conn.execute("DROP TABLE IF EXISTS users CASCADE")
-            await conn.execute("DROP TABLE IF EXISTS crm_leads CASCADE")
-            logger.info("Existing tables DROPPED for schema refresh.")
-            
-            # שלב 2: יצירת הטבלאות מחדש עם הסכמה המעודכנת
             # טבלת משתמשים - עם שדות ניקוד וקמפיין
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -32,7 +23,7 @@ async def create_tables():
                 )
             """)
 
-            # טבלת CRM / לידים - הוספת סיווג כוונות AI
+            # טבלת CRM / לידים
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS crm_leads (
                     id SERIAL PRIMARY KEY,
