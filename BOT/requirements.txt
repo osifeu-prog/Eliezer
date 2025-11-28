@@ -1,4 +1,4 @@
-python-telegram-bot==20.*
+python-telegram-bot[job-queue]==20.* <-- שונה
 fastapi
 uvicorn
 pydantic
