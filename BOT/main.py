@@ -1,50 +1,50 @@
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-import os
-import logging
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, Response
+import uvicorn
+from bot import create_bot_application
+from webhook_handler import process_webhook_update
+from config import WEBHOOK_URL, PORT, TELEGRAM_BOT_TOKEN, logger
+from create_tables import init_db
 
-# Setup logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+# אתחול הבוט
+bot_app = create_bot_application()
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-PORT = int(os.getenv("PORT", 8080))
-
-async def start(update, context):
-    """Handle /start command"""
-    user = update.effective_user
-    await update.message.reply_text(
-        f'👋 שלום {user.first_name}! \n\nהבוט עובד בהצלחה! 🚀'
-    )
-
-async def help_command(update, context):
-    """Handle /help command"""
-    await update.message.reply_text('📖 שלח /start כדי להתחיל')
-
-async def echo(update, context):
-    """Echo the user message"""
-    await update.message.reply_text(f'אתה אמרת: {update.message.text}')
-
-def main():
-    """Main function to start the bot"""
-    # Create application
-    application = Application.builder().token(TOKEN).build()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup ---
+    logger.info("Starting up...")
+    init_db()  # יצירת טבלאות
+    await bot_app.initialize()
+    await bot_app.start()
     
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+    # הגדרת Webhook מול טלגרם
+    webhook_path = f"{WEBHOOK_URL}/telegram"
+    logger.info(f"Setting webhook to: {webhook_path}")
+    await bot_app.bot.set_webhook(url=webhook_path)
     
-    # Start the webhook
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=f"{WEBHOOK_URL}/telegram",
-        secret_token=None,
-        drop_pending_updates=True
-    )
+    yield
+    
+    # --- Shutdown ---
+    logger.info("Shutting down...")
+    await bot_app.stop()
+    await bot_app.shutdown()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/")
+async def health_check():
+    return {"status": "ok", "bot": "Eliezer"}
+
+@app.post("/telegram")
+async def telegram_webhook(request: Request):
+    """הנתיב שאליו טלגרם שולח עדכונים"""
+    try:
+        body = await request.json()
+        await process_webhook_update(bot_app, body)
+        return Response(status_code=200)
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return Response(status_code=500)
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, log_level="info")
