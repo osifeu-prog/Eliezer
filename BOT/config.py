@@ -17,9 +17,13 @@ PORT = int(os.getenv("PORT", 8080))
 # ניהול הרשאות וקבוצות
 ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
 
-# מזהי קבוצות - חובה שיהיו מספרים שליליים (לדוגמה: -1001234567890)
-LOG_GROUP_ID = os.getenv("LOG_GROUP_ID")      # קבוצה לרישום לידים
-SUPPORT_GROUP_ID = os.getenv("SUPPORT_GROUP_ID") # קבוצה לבקשות תמיכה
+# מזהי קבוצות - חובה שיהיו מספרים שליליים
+LOG_GROUP_ID = os.getenv("LOG_GROUP_ID")      
+SUPPORT_GROUP_ID = os.getenv("SUPPORT_GROUP_ID") 
+
+# קבוצות חדשות כחוזים עתידיים (Future Contracts)
+FRIENDS_GROUP_ID = os.getenv("FRIENDS_GROUP_ID")     # קבוצת חברים/לקוחות
+RECEIPTS_GROUP_ID = os.getenv("RECEIPTS_GROUP_ID") # קבוצת קבלות לתיעוד
 
 # משתנים לניהול
 DATABASE_URL = os.getenv("DATABASE_URL")
